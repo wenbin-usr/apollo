@@ -40,6 +40,11 @@ import java.util.*;
 /**
  * @author Jason Song(song_s@ctrip.com)
  */
+/**
+ * @deprecated Portal UI uses /openapi/v1 endpoints. This legacy WebAPI controller is kept for
+ *     compatibility.
+ */
+@Deprecated
 @RestController
 public class ConsumerController {
 
@@ -104,6 +109,9 @@ public class ConsumerController {
         requestVO.getRateLimit(), expires, operator);
     if (requestVO.isAllowCreateApplication()) {
       consumerService.assignCreateApplicationRoleToConsumer(consumerToken.getToken(), operator);
+    }
+    if (requestVO.isAllowManageUsers()) {
+      consumerService.assignManageUsersRoleToConsumer(consumerToken.getToken(), operator);
     }
     return consumerService.getConsumerInfoByAppId(requestVO.getAppId());
   }

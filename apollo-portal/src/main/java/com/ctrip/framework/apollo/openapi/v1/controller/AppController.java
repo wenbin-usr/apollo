@@ -19,6 +19,7 @@ package com.ctrip.framework.apollo.openapi.v1.controller;
 import com.ctrip.framework.apollo.audit.annotation.ApolloAuditLog;
 import com.ctrip.framework.apollo.audit.annotation.OpType;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
+import com.ctrip.framework.apollo.common.utils.InputValidator;
 import com.ctrip.framework.apollo.openapi.api.AppManagementApi;
 import com.ctrip.framework.apollo.openapi.model.OpenAppDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenCreateAppDTO;
@@ -28,6 +29,7 @@ import com.ctrip.framework.apollo.openapi.model.OpenMissEnvDTO;
 import com.ctrip.framework.apollo.openapi.server.service.AppOpenApiService;
 import com.ctrip.framework.apollo.openapi.service.ConsumerService;
 import com.ctrip.framework.apollo.openapi.util.ConsumerAuthUtil;
+import com.ctrip.framework.apollo.portal.component.UnifiedPermissionValidator;
 import com.ctrip.framework.apollo.portal.component.UserIdentityContextHolder;
 import com.ctrip.framework.apollo.portal.constant.UserIdentityConstants;
 import com.ctrip.framework.apollo.portal.entity.bo.UserInfo;
@@ -38,6 +40,7 @@ import com.ctrip.framework.apollo.portal.spi.UserInfoHolder;
 import com.ctrip.framework.apollo.portal.spi.UserService;
 import com.ctrip.framework.apollo.portal.util.RoleUtils;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.RestController;
@@ -60,17 +63,20 @@ public class AppController implements AppManagementApi {
   private final UserService userService;
   private final UserInfoHolder userInfoHolder;
   private final RolePermissionService rolePermissionService;
+  private final UnifiedPermissionValidator unifiedPermissionValidator;
 
   public AppController(final ConsumerAuthUtil consumerAuthUtil,
       final ConsumerService consumerService, final AppOpenApiService appOpenApiService,
       final UserService userService, final UserInfoHolder userInfoHolder,
-      final RolePermissionService rolePermissionService) {
+      final RolePermissionService rolePermissionService,
+      final UnifiedPermissionValidator unifiedPermissionValidator) {
     this.consumerAuthUtil = consumerAuthUtil;
     this.consumerService = consumerService;
     this.appOpenApiService = appOpenApiService;
     this.userService = userService;
     this.userInfoHolder = userInfoHolder;
     this.rolePermissionService = rolePermissionService;
+    this.unifiedPermissionValidator = unifiedPermissionValidator;
   }
 
   /**
@@ -78,6 +84,7 @@ public class AppController implements AppManagementApi {
    */
   @Transactional
   @PreAuthorize(value = "@unifiedPermissionValidator.hasCreateApplicationPermission()")
+  @ApolloAuditLog(type = OpType.CREATE, name = "App.create")
   @Override
   public ResponseEntity<Void> createApp(OpenCreateAppDTO req) {
     if (null == req.getApp()) {
@@ -87,6 +94,7 @@ public class AppController implements AppManagementApi {
     if (!StringUtils.hasText(app.getAppId())) {
       throw new BadRequestException("AppId is null or blank");
     }
+    validatePortalApp(app);
     String resolvedOperator = resolveOperator(app.getDataChangeCreatedBy());
     app.setDataChangeCreatedBy(resolvedOperator);
     app.setDataChangeLastModifiedBy(resolvedOperator);
@@ -150,6 +158,7 @@ public class AppController implements AppManagementApi {
     if (!Objects.equals(appId, dto.getAppId())) {
       throw new BadRequestException("The App Id of path variable and request body is different");
     }
+    validatePortalApp(dto);
     String resolvedOperator = resolveOperator(operator);
     dto.setDataChangeLastModifiedBy(resolvedOperator);
     appOpenApiService.updateApp(dto, resolvedOperator);
@@ -172,12 +181,12 @@ public class AppController implements AppManagementApi {
    * POST /openapi/v1/apps/envs/{env}
    */
   @Override
-  @PreAuthorize(value = "@unifiedPermissionValidator.hasCreateApplicationPermission()")
   @ApolloAuditLog(type = OpType.CREATE, name = "App.create.forEnv")
   public ResponseEntity<Void> createAppInEnv(String env, OpenAppDTO app, String operator) {
     if (app == null) {
       throw new BadRequestException("App is null");
     }
+    requireCreateAppInEnvPermission();
     String resolvedOperator = resolveOperator(operator);
     app.setDataChangeCreatedBy(resolvedOperator);
     app.setDataChangeLastModifiedBy(resolvedOperator);
@@ -190,8 +199,8 @@ public class AppController implements AppManagementApi {
    * Delete App (new added)
    */
   @Override
-  @PreAuthorize(value = "@unifiedPermissionValidator.isAppAdmin(#appId)")
-  @ApolloAuditLog(type = OpType.DELETE, name = "App.delete")
+  @PreAuthorize(value = "@unifiedPermissionValidator.isSuperAdmin()")
+  @ApolloAuditLog(type = OpType.RPC, name = "App.delete")
   public ResponseEntity<Void> deleteApp(String appId, String operator) {
     String resolvedOperator = resolveOperator(operator);
     appOpenApiService.deleteApp(appId, resolvedOperator);
@@ -204,6 +213,21 @@ public class AppController implements AppManagementApi {
   @Override
   public ResponseEntity<List<OpenMissEnvDTO>> findMissEnvs(String appId) {
     return ResponseEntity.ok(appOpenApiService.findMissEnvs(appId));
+  }
+
+  private void requireCreateAppInEnvPermission() {
+    String authType = UserIdentityContextHolder.getAuthType();
+    if (UserIdentityConstants.USER.equals(authType)) {
+      // The legacy Portal WebAPI path for creating an app in a missing environment did not
+      // perform method-level authorization. Keep Portal UI behavior compatible after routing
+      // it through OpenAPI, but do not extend that compatibility to consumer tokens.
+      return;
+    }
+    if (UserIdentityConstants.CONSUMER.equals(authType)
+        && unifiedPermissionValidator.hasCreateApplicationPermission()) {
+      return;
+    }
+    throw new AccessDeniedException("Create application permission is required");
   }
 
   private String resolveOperator(String operator) {
@@ -227,6 +251,28 @@ public class AppController implements AppManagementApi {
 
     throw new BadRequestException("Unsupported auth type: %s",
         UserIdentityContextHolder.getAuthType());
+  }
+
+  private void validatePortalApp(OpenAppDTO app) {
+    if (!UserIdentityConstants.USER.equals(UserIdentityContextHolder.getAuthType())) {
+      return;
+    }
+    if (!StringUtils.hasText(app.getName())) {
+      throw BadRequestException.appNameIsBlank();
+    }
+    if (!InputValidator.isValidClusterNamespace(app.getAppId())) {
+      throw new BadRequestException("Invalid AppId format: %s",
+          InputValidator.INVALID_CLUSTER_NAMESPACE_MESSAGE);
+    }
+    if (!StringUtils.hasText(app.getOrgId())) {
+      throw BadRequestException.orgIdIsBlank();
+    }
+    if (!StringUtils.hasText(app.getOrgName())) {
+      throw new BadRequestException("orgName can not be blank");
+    }
+    if (!StringUtils.hasText(app.getOwnerName())) {
+      throw BadRequestException.ownerNameIsBlank();
+    }
   }
 
   private Set<String> findAppIdsAuthorizedByCurrentIdentity() {

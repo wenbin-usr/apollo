@@ -55,6 +55,8 @@ HTTP_METHODS = {
     "trace",
 }
 
+UNORDERED_SCHEMA_LIST_KEYS = {"allOf", "anyOf", "enum", "oneOf", "required"}
+
 
 @dataclass
 class Operation:
@@ -67,6 +69,7 @@ class Operation:
 class OpenApiSnapshot:
   operations: Dict[Tuple[str, str], Operation] = field(default_factory=dict)
   schemas: Set[str] = field(default_factory=set)
+  schema_signatures: Dict[str, str] = field(default_factory=dict)
   schema_required: Dict[str, Set[str]] = field(default_factory=dict)
   schema_properties: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
@@ -82,11 +85,17 @@ def schema_signature(schema: Any) -> Optional[str]:
   if not isinstance(schema, dict):
     return None
 
-  def normalize(value: Any) -> Any:
+  def normalized_sort_key(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+  def normalize(value: Any, parent_key: Optional[str] = None) -> Any:
     if isinstance(value, dict):
-      return {key: normalize(value[key]) for key in sorted(value)}
+      return {key: normalize(value[key], key) for key in sorted(value)}
     if isinstance(value, list):
-      return [normalize(item) for item in value]
+      normalized_items = [normalize(item) for item in value]
+      if parent_key in UNORDERED_SCHEMA_LIST_KEYS:
+        return sorted(normalized_items, key=normalized_sort_key)
+      return normalized_items
     return value
 
   keys = (
@@ -96,15 +105,157 @@ def schema_signature(schema: Any) -> Optional[str]:
       "nullable",
       "enum",
       "items",
+      "maxItems",
+      "minItems",
+      "properties",
+      "required",
       "additionalProperties",
+      "maxProperties",
+      "minProperties",
+      "uniqueItems",
       "allOf",
       "anyOf",
       "oneOf",
   )
-  signature = {key: normalize(schema[key]) for key in keys if key in schema}
+  signature = {key: normalize(schema[key], key) for key in keys if key in schema}
   if not signature:
     return None
   return json.dumps(signature, sort_keys=True, separators=(",", ":"))
+
+
+def load_schema_signature(signature: str) -> Optional[Dict[str, Any]]:
+  try:
+    value = json.loads(signature)
+  except json.JSONDecodeError:
+    return None
+  return value if isinstance(value, dict) else None
+
+
+def component_schema_name(ref: Any) -> Optional[str]:
+  if not isinstance(ref, str):
+    return None
+  prefix = "#/components/schemas/"
+  if not ref.startswith(prefix):
+    return None
+  return ref[len(prefix):].replace("~1", "/").replace("~0", "~")
+
+
+def ref_target_is_object_schema(
+    schema: Dict[str, Any], head_schema_signatures: Dict[str, str]
+) -> bool:
+  def object_schema_state(candidate: Any) -> str:
+    if not isinstance(candidate, dict):
+      return "reject"
+
+    schema_name = component_schema_name(candidate.get("$ref"))
+    if schema_name:
+      return object_schema_state(load_schema_signature(head_schema_signatures.get(schema_name, "")))
+
+    schema_type = candidate.get("type")
+    if schema_type and schema_type != "object":
+      return "reject"
+
+    all_of = candidate.get("allOf")
+    if isinstance(all_of, list):
+      if not all_of:
+        return "reject"
+      member_states = [object_schema_state(member) for member in all_of]
+      if "reject" in member_states:
+        return "reject"
+      if "accept" in member_states:
+        return "accept"
+      return "neutral"
+
+    if (
+        schema_type == "object"
+        or "properties" in candidate
+        or "additionalProperties" in candidate
+    ):
+      return "accept"
+    return "neutral"
+
+  return object_schema_state(schema) == "accept"
+
+
+def schema_signature_change_is_compatible(
+    base_signature: str, head_signature: str, head_schema_signatures: Dict[str, str]
+) -> bool:
+  base_schema = load_schema_signature(base_signature)
+  head_schema = load_schema_signature(head_signature)
+  if base_schema is None or head_schema is None:
+    return False
+
+  if base_schema == {"type": "object"}:
+    return ref_target_is_object_schema(head_schema, head_schema_signatures)
+
+  if base_schema == {"items": {"type": "object"}, "type": "array"}:
+    head_items = head_schema.get("items")
+    return (
+        head_schema.get("type") == "array"
+        and isinstance(head_items, dict)
+        and ref_target_is_object_schema(head_items, head_schema_signatures)
+    )
+
+  return False
+
+
+def request_schema_change_is_compatible(
+    base_request_schema: str,
+    head_request_schema: Optional[str],
+    head_schema_signatures: Dict[str, str],
+) -> bool:
+  if head_request_schema is None:
+    return False
+  try:
+    base_schemas = json.loads(base_request_schema)
+    head_schemas = json.loads(head_request_schema)
+  except json.JSONDecodeError:
+    return False
+
+  if not isinstance(base_schemas, list) or not isinstance(head_schemas, list):
+    return False
+  if len(base_schemas) != len(head_schemas):
+    return False
+
+  for base_entry, head_entry in zip(base_schemas, head_schemas):
+    if not (
+        isinstance(base_entry, list)
+        and isinstance(head_entry, list)
+        and len(base_entry) == 2
+        and len(head_entry) == 2
+    ):
+      return False
+    if base_entry[0] != head_entry[0]:
+      return False
+    if base_entry[1] == head_entry[1]:
+      continue
+    if not schema_signature_change_is_compatible(
+        base_entry[1], head_entry[1], head_schema_signatures
+    ):
+      return False
+  return True
+
+
+def response_schemas_change_is_compatible(
+    base_response_schemas: Tuple[Tuple[str, str, str], ...],
+    head_response_schemas: Tuple[Tuple[str, str, str], ...],
+    head_schema_signatures: Dict[str, str],
+) -> bool:
+  if len(base_response_schemas) != len(head_response_schemas):
+    return False
+
+  for base_entry, head_entry in zip(base_response_schemas, head_response_schemas):
+    base_status, base_media_type, base_signature = base_entry
+    head_status, head_media_type, head_signature = head_entry
+    if base_status != head_status or base_media_type != head_media_type:
+      return False
+    if base_signature == head_signature:
+      continue
+    if not schema_signature_change_is_compatible(
+        base_signature, head_signature, head_schema_signatures
+    ):
+      return False
+  return True
 
 
 def extract_request_schema(operation: Dict[str, Any]) -> Optional[str]:
@@ -178,6 +329,10 @@ def parse_spec(text: str) -> OpenApiSnapshot:
       if not isinstance(schema, dict):
         continue
 
+      signature = schema_signature(schema)
+      if signature:
+        snapshot.schema_signatures[schema_name] = signature
+
       required = schema.get("required") or []
       if isinstance(required, list):
         snapshot.schema_required[schema_name].update(str(field_name) for field_name in required)
@@ -234,18 +389,24 @@ def compare_specs(
     base_request_schema = base.operations[(path, method)].request_schema
     head_request_schema = head.operations[(path, method)].request_schema
     if base_request_schema and base_request_schema != head_request_schema:
-      issues.append(
-          f"Changed request schema for {key}: {base_request_schema} -> "
-          f"{head_request_schema}"
-      )
+      if not request_schema_change_is_compatible(
+          base_request_schema, head_request_schema, head.schema_signatures
+      ):
+        issues.append(
+            f"Changed request schema for {key}: {base_request_schema} -> "
+            f"{head_request_schema}"
+        )
 
     base_response_schemas = base.operations[(path, method)].response_schemas
     head_response_schemas = head.operations[(path, method)].response_schemas
     if base_response_schemas and base_response_schemas != head_response_schemas:
-      issues.append(
-          f"Changed response schemas for {key}: {base_response_schemas} -> "
-          f"{head_response_schemas}"
-      )
+      if not response_schemas_change_is_compatible(
+          base_response_schemas, head_response_schemas, head.schema_signatures
+      ):
+        issues.append(
+            f"Changed response schemas for {key}: {base_response_schemas} -> "
+            f"{head_response_schemas}"
+        )
 
   for schema in sorted(base.schemas):
     if schema not in head.schemas:

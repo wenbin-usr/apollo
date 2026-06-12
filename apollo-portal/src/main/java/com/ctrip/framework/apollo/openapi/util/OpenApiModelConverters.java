@@ -58,12 +58,14 @@ import com.ctrip.framework.apollo.openapi.model.OpenPermissionConditionDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenReleaseChangeDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenReleaseDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenReleaseDiffDTO;
+import com.ctrip.framework.apollo.openapi.model.OpenUserDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenUserInfoDTO;
 import com.ctrip.framework.apollo.portal.entity.bo.ItemBO;
 import com.ctrip.framework.apollo.portal.entity.bo.KVEntity;
 import com.ctrip.framework.apollo.portal.entity.bo.NamespaceBO;
 import com.ctrip.framework.apollo.portal.entity.bo.UserInfo;
 import com.ctrip.framework.apollo.portal.entity.model.NamespaceTextModel;
+import com.ctrip.framework.apollo.portal.entity.po.UserPO;
 import com.ctrip.framework.apollo.portal.entity.vo.AppRolesAssignedUsers;
 import com.ctrip.framework.apollo.portal.entity.vo.ClusterNamespaceRolesAssignedUsers;
 import com.ctrip.framework.apollo.portal.entity.vo.EnvClusterInfo;
@@ -93,7 +95,6 @@ import java.util.stream.Collectors;
 
 /**
  * Non-invasive converters for OpenAPI generated model classes.
- * This class mirrors/OpenApiBeanUtils functions but targets com.ctrip.framework.apollo.openapi.model.* types.
  */
 public final class OpenApiModelConverters {
 
@@ -103,19 +104,16 @@ public final class OpenApiModelConverters {
   private OpenApiModelConverters() {}
 
   // region Item conversions
-  // originally defined in OpenApiBeanUtils not new added
   public static OpenItemDTO fromItemDTO(ItemDTO item) {
     Preconditions.checkArgument(item != null);
     return BeanUtils.transform(OpenItemDTO.class, item);
   }
 
-  // originally defined in OpenApiBeanUtils
   public static ItemDTO toItemDTO(OpenItemDTO openItemDTO) {
     Preconditions.checkArgument(openItemDTO != null);
     return BeanUtils.transform(ItemDTO.class, openItemDTO);
   }
 
-  // newly added
   public static List<ItemDTO> toItemDTOs(List<OpenItemDTO> openItemDTOs) {
     if (CollectionUtils.isEmpty(openItemDTOs)) {
       return Collections.emptyList();
@@ -124,7 +122,6 @@ public final class OpenApiModelConverters {
         .collect(Collectors.toList());
   }
 
-  // newly added
   public static List<OpenItemDTO> fromItemDTOs(List<ItemDTO> items) {
     if (CollectionUtils.isEmpty(items)) {
       return Collections.emptyList();
@@ -132,29 +129,13 @@ public final class OpenApiModelConverters {
     return items.stream().map(OpenApiModelConverters::fromItemDTO).collect(Collectors.toList());
   }
 
-  public static OpenItemDTO fromLegacyOpenItemDTO(
-      com.ctrip.framework.apollo.openapi.dto.OpenItemDTO item) {
-    Preconditions.checkArgument(item != null);
-    return BeanUtils.transform(OpenItemDTO.class, item);
-  }
-
-  public static List<OpenItemDTO> fromLegacyOpenItemDTOs(
-      List<com.ctrip.framework.apollo.openapi.dto.OpenItemDTO> items) {
-    if (CollectionUtils.isEmpty(items)) {
-      return Collections.emptyList();
-    }
-    return items.stream().map(OpenApiModelConverters::fromLegacyOpenItemDTO)
-        .collect(Collectors.toList());
-  }
-
-  public static OpenItemPageDTO fromLegacyOpenItemPageDTO(
-      PageDTO<com.ctrip.framework.apollo.openapi.dto.OpenItemDTO> page) {
+  public static OpenItemPageDTO fromItemPageDTO(PageDTO<ItemDTO> page) {
     Preconditions.checkArgument(page != null);
     OpenItemPageDTO result = new OpenItemPageDTO();
     result.setPage(page.getPage());
     result.setSize(page.getSize());
     result.setTotal(page.getTotal());
-    result.setContent(fromLegacyOpenItemDTOs(page.getContent()));
+    result.setContent(fromItemDTOs(page.getContent()));
     return result;
   }
 
@@ -190,7 +171,6 @@ public final class OpenApiModelConverters {
   // endregion
 
   // region App/AppNamespace conversions
-  // originally defined in OpenApiBeanUtils
   public static OpenAppNamespaceDTO fromAppNamespace(AppNamespace appNamespace) {
     Preconditions.checkArgument(appNamespace != null);
     OpenAppNamespaceDTO result = BeanUtils.transform(OpenAppNamespaceDTO.class, appNamespace);
@@ -198,7 +178,6 @@ public final class OpenApiModelConverters {
     return result;
   }
 
-  // originally defined in OpenApiBeanUtils
   public static AppNamespace toAppNamespace(OpenAppNamespaceDTO openAppNamespaceDTO) {
     Preconditions.checkArgument(openAppNamespaceDTO != null);
     AppNamespace result = BeanUtils.transform(AppNamespace.class, openAppNamespaceDTO);
@@ -206,7 +185,6 @@ public final class OpenApiModelConverters {
     return result;
   }
 
-  // originally defined in OpenApiBeanUtils
   public static List<OpenAppDTO> fromApps(final List<App> apps) {
     if (CollectionUtils.isEmpty(apps)) {
       return Collections.emptyList();
@@ -214,7 +192,6 @@ public final class OpenApiModelConverters {
     return apps.stream().map(OpenApiModelConverters::fromApp).collect(Collectors.toList());
   }
 
-  // originally defined in OpenApiBeanUtils
   public static OpenAppDTO fromApp(final App app) {
     Preconditions.checkArgument(app != null);
     return BeanUtils.transform(OpenAppDTO.class, app);
@@ -222,7 +199,6 @@ public final class OpenApiModelConverters {
   // endregion
 
   // region Release conversions
-  // originally defined in OpenApiBeanUtils
   public static OpenReleaseDTO fromReleaseDTO(ReleaseDTO release) {
     Preconditions.checkArgument(release != null);
     OpenReleaseDTO openReleaseDTO = BeanUtils.transform(OpenReleaseDTO.class, release);
@@ -266,7 +242,6 @@ public final class OpenApiModelConverters {
   // endregion
 
   // region Namespace conversions
-  // originally defined in OpenApiBeanUtils
   public static OpenNamespaceDTO fromNamespaceBO(NamespaceBO namespaceBO) {
     Preconditions.checkArgument(namespaceBO != null);
     OpenNamespaceDTO openNamespaceDTO =
@@ -303,7 +278,6 @@ public final class OpenApiModelConverters {
     return openItemDTO;
   }
 
-  // originally defined in OpenApiBeanUtils
   public static List<OpenNamespaceDTO> fromNamespaceBOs(List<NamespaceBO> namespaceBOs) {
     if (CollectionUtils.isEmpty(namespaceBOs)) {
       return Collections.emptyList();
@@ -312,7 +286,6 @@ public final class OpenApiModelConverters {
         .collect(Collectors.toCollection(LinkedList::new));
   }
 
-  // originally defined in OpenApiBeanUtils
   public static OpenNamespaceLockDTO fromNamespaceLockDTO(String namespaceName,
       NamespaceLockDTO namespaceLock) {
     OpenNamespaceLockDTO lock = new OpenNamespaceLockDTO();
@@ -326,7 +299,6 @@ public final class OpenApiModelConverters {
     return lock;
   }
 
-  // newly added
   public static OpenNamespaceDTO fromNamespaceDTO(NamespaceDTO namespaceDTO) {
     Preconditions.checkArgument(namespaceDTO != null);
     return BeanUtils.transform(OpenNamespaceDTO.class, namespaceDTO);
@@ -354,14 +326,12 @@ public final class OpenApiModelConverters {
         .collect(Collectors.toList());
   }
 
-  // newly added
   public static NamespaceTextModel toNamespaceTextModel(
       final OpenNamespaceTextModel openNamespaceTextModel) {
     Preconditions.checkArgument(openNamespaceTextModel != null);
     return BeanUtils.transform(NamespaceTextModel.class, openNamespaceTextModel);
   }
 
-  // newly added
   public static List<NamespaceTextModel> toNamespaceTextModels(
       final List<OpenNamespaceTextModel> openNamespaceTextModels) {
     if (CollectionUtils.isEmpty(openNamespaceTextModels)) {
@@ -371,7 +341,6 @@ public final class OpenApiModelConverters {
         .collect(Collectors.toList());
   }
 
-  // newly added
   public static NamespaceIdentifier toNamespaceIdentifier(
       final OpenNamespaceIdentifier openNamespaceIdentifier) {
     Preconditions.checkArgument(openNamespaceIdentifier != null);
@@ -383,7 +352,6 @@ public final class OpenApiModelConverters {
     return namespaceIdentifier;
   }
 
-  // newly added
   public static List<NamespaceIdentifier> toNamespaceIdentifiers(
       final List<OpenNamespaceIdentifier> openNamespaceIdentifiers) {
     if (CollectionUtils.isEmpty(openNamespaceIdentifiers)) {
@@ -393,7 +361,6 @@ public final class OpenApiModelConverters {
         .collect(Collectors.toList());
   }
 
-  // newly added
   public static OpenNamespaceIdentifier fromNamespaceIdentifier(
       final NamespaceIdentifier namespaceIdentifier) {
     Preconditions.checkArgument(namespaceIdentifier != null);
@@ -408,14 +375,12 @@ public final class OpenApiModelConverters {
   // endregion
 
   // region Gray release rule conversions
-  // originally defined in OpenApiBeanUtils
   public static OpenGrayReleaseRuleDTO fromGrayReleaseRuleDTO(
       GrayReleaseRuleDTO grayReleaseRuleDTO) {
     Preconditions.checkArgument(grayReleaseRuleDTO != null);
     return BeanUtils.transform(OpenGrayReleaseRuleDTO.class, grayReleaseRuleDTO);
   }
 
-  // originally defined in OpenApiBeanUtils
   public static GrayReleaseRuleDTO toGrayReleaseRuleDTO(
       OpenGrayReleaseRuleDTO openGrayReleaseRuleDTO) {
     Preconditions.checkArgument(openGrayReleaseRuleDTO != null);
@@ -446,13 +411,11 @@ public final class OpenApiModelConverters {
   // endregion
 
   // region Cluster conversions
-  // originally defined in OpenApiBeanUtils
   public static OpenClusterDTO fromClusterDTO(ClusterDTO cluster) {
     Preconditions.checkArgument(cluster != null);
     return BeanUtils.transform(OpenClusterDTO.class, cluster);
   }
 
-  // originally defined in OpenApiBeanUtils
   public static ClusterDTO toClusterDTO(OpenClusterDTO openClusterDTO) {
     Preconditions.checkArgument(openClusterDTO != null);
     return BeanUtils.transform(ClusterDTO.class, openClusterDTO);
@@ -460,13 +423,11 @@ public final class OpenApiModelConverters {
   // endregion
 
   // region Organization conversions
-  // originally defined in OpenApiBeanUtils
   public static OpenOrganizationDto fromOrganization(final Organization organization) {
     Preconditions.checkArgument(organization != null);
     return BeanUtils.transform(OpenOrganizationDto.class, organization);
   }
 
-  // originally defined in OpenApiBeanUtils
   public static List<OpenOrganizationDto> fromOrganizations(
       final List<Organization> organizations) {
     if (CollectionUtils.isEmpty(organizations)) {
@@ -478,7 +439,6 @@ public final class OpenApiModelConverters {
   // endregion
 
   // region Instance conversions
-  // newly added
   public static OpenInstanceDTO fromInstanceDTO(final InstanceDTO instanceDTO) {
     Preconditions.checkArgument(instanceDTO != null);
     return BeanUtils.transform(OpenInstanceDTO.class, instanceDTO);
@@ -560,6 +520,14 @@ public final class OpenApiModelConverters {
     return BeanUtils.transform(OpenUserInfoDTO.class, userInfo);
   }
 
+  public static List<OpenUserInfoDTO> fromUserInfos(final List<UserInfo> userInfos) {
+    if (CollectionUtils.isEmpty(userInfos)) {
+      return Collections.emptyList();
+    }
+    return userInfos.stream().map(OpenApiModelConverters::fromUserInfo)
+        .collect(Collectors.toList());
+  }
+
   public static List<OpenUserInfoDTO> fromUserInfos(final Set<UserInfo> userInfos) {
     if (CollectionUtils.isEmpty(userInfos)) {
       return Collections.emptyList();
@@ -567,6 +535,17 @@ public final class OpenApiModelConverters {
     return userInfos.stream()
         .sorted(Comparator.comparing(UserInfo::getUserId, Comparator.nullsFirst(String::compareTo)))
         .map(OpenApiModelConverters::fromUserInfo).collect(Collectors.toList());
+  }
+
+  public static UserPO toUserPO(final OpenUserDTO user) {
+    Preconditions.checkArgument(user != null);
+    UserPO result = new UserPO();
+    result.setUsername(user.getUsername());
+    result.setUserDisplayName(user.getUserDisplayName());
+    result.setPassword(user.getPassword());
+    result.setEmail(user.getEmail());
+    result.setEnabled(user.getEnabled() == null ? 0 : user.getEnabled());
+    return result;
   }
 
   public static OpenAppRoleUserDTO fromAppRolesAssignedUsers(
