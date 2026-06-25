@@ -182,6 +182,38 @@ public class ItemControllerParamBindLowLevelTest {
   }
 
   @Test
+  public void createItemShouldUseCurrentUserTokenUserAndIgnoreSpoofedPayloadOperator()
+      throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    UserInfo tokenUser = new UserInfo();
+    tokenUser.setUserId("token-user");
+    when(userInfoHolder.getUser()).thenReturn(tokenUser);
+
+    OpenItemDTO request = new OpenItemDTO();
+    request.setKey("timeout");
+    request.setValue("100");
+    request.setDataChangeCreatedBy("spoofed-user");
+
+    OpenItemDTO response = new OpenItemDTO();
+    response.setKey("timeout");
+    when(itemOpenApiService.createItem(anyString(), anyString(), anyString(), anyString(),
+        any(OpenItemDTO.class), anyString())).thenReturn(response);
+
+    mockMvc.perform(post(
+        "/openapi/v1/envs/{env}/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/items",
+        ENV, APP_ID, CLUSTER, NAMESPACE).contentType(MediaType.APPLICATION_JSON)
+        .content(gson.toJson(request))).andExpect(status().isOk());
+
+    ArgumentCaptor<OpenItemDTO> itemCaptor = ArgumentCaptor.forClass(OpenItemDTO.class);
+    ArgumentCaptor<String> operatorCaptor = ArgumentCaptor.forClass(String.class);
+    verify(itemOpenApiService).createItem(anyString(), anyString(), anyString(), anyString(),
+        itemCaptor.capture(), operatorCaptor.capture());
+    assertThat(itemCaptor.getValue().getDataChangeCreatedBy()).isEqualTo("token-user");
+    assertThat(itemCaptor.getValue().getDataChangeLastModifiedBy()).isEqualTo("token-user");
+    assertThat(operatorCaptor.getValue()).isEqualTo("token-user");
+  }
+
+  @Test
   public void updateItemShouldRejectPathPayloadKeyMismatch() throws Exception {
     OpenItemDTO request = new OpenItemDTO();
     request.setKey("other-key");
@@ -225,6 +257,21 @@ public class ItemControllerParamBindLowLevelTest {
   }
 
   @Test
+  public void findItemsShouldRejectHiddenUserTokenConfig() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    mockMvc.perform(get(
+        "/openapi/v1/envs/{env}/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/items",
+        ENV, APP_ID, CLUSTER, NAMESPACE).param("page", "0").param("size", "50"))
+        .andExpect(status().isForbidden());
+
+    verify(itemOpenApiService, never()).findItemsByNamespace(anyString(), anyString(), anyString(),
+        anyString(), any(Integer.class), any(Integer.class));
+  }
+
+  @Test
   public void getItemShouldReturnEmptyBodyForHiddenPortalUserConfig() throws Exception {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER);
     when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
@@ -236,6 +283,35 @@ public class ItemControllerParamBindLowLevelTest {
         .andExpect(content().string(""));
 
     verify(itemOpenApiService, never()).getItem(anyString(), anyString(), anyString(), anyString(),
+        anyString());
+  }
+
+  @Test
+  public void getItemShouldRejectHiddenUserTokenConfig() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    mockMvc.perform(get(
+        "/openapi/v1/envs/{env}/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/items/{key}",
+        ENV, APP_ID, CLUSTER, NAMESPACE, "timeout")).andExpect(status().isForbidden());
+
+    verify(itemOpenApiService, never()).getItem(anyString(), anyString(), anyString(), anyString(),
+        anyString());
+  }
+
+  @Test
+  public void findBranchItemsShouldRejectHiddenUserTokenConfig() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    String branchName = "gray";
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, branchName,
+        NAMESPACE)).thenReturn(true);
+
+    mockMvc.perform(get(
+        "/openapi/v1/envs/{env}/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/branches/{branchName}/items",
+        ENV, APP_ID, CLUSTER, NAMESPACE, branchName)).andExpect(status().isForbidden());
+
+    verify(itemOpenApiService, never()).findBranchItems(anyString(), anyString(), anyString(),
         anyString());
   }
 
@@ -327,5 +403,54 @@ public class ItemControllerParamBindLowLevelTest {
     verify(itemOpenApiService).compareItems(anyString(), anyString(), anyString(), anyString(),
         requestCaptor.capture());
     assertThat(requestCaptor.getValue().getSyncItems()).isEmpty();
+  }
+
+  @Test
+  public void compareItemsShouldRejectUserTokenWithoutSourceConfigRead() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    OpenNamespaceSyncDTO request = syncRequest(APP_ID, ENV, CLUSTER, NAMESPACE);
+
+    mockMvc.perform(post(
+        "/openapi/v1/envs/{env}/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/items/diff",
+        ENV, APP_ID, CLUSTER, NAMESPACE).contentType(MediaType.APPLICATION_JSON)
+        .content(gson.toJson(request))).andExpect(status().isForbidden());
+
+    verify(itemOpenApiService, never()).compareItems(anyString(), anyString(), anyString(),
+        anyString(), any(OpenNamespaceSyncDTO.class));
+  }
+
+  @Test
+  public void compareItemsShouldRejectUserTokenWithoutTargetConfigRead() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(false);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, "secret"))
+        .thenReturn(true);
+
+    OpenNamespaceSyncDTO request = syncRequest(APP_ID, ENV, CLUSTER, "secret");
+
+    mockMvc.perform(post(
+        "/openapi/v1/envs/{env}/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/items/diff",
+        ENV, APP_ID, CLUSTER, NAMESPACE).contentType(MediaType.APPLICATION_JSON)
+        .content(gson.toJson(request))).andExpect(status().isForbidden());
+
+    verify(itemOpenApiService, never()).compareItems(anyString(), anyString(), anyString(),
+        anyString(), any(OpenNamespaceSyncDTO.class));
+  }
+
+  private OpenNamespaceSyncDTO syncRequest(String appId, String env, String clusterName,
+      String namespaceName) {
+    OpenNamespaceIdentifier namespaceIdentifier = new OpenNamespaceIdentifier();
+    namespaceIdentifier.setAppId(appId);
+    namespaceIdentifier.setEnv(env);
+    namespaceIdentifier.setClusterName(clusterName);
+    namespaceIdentifier.setNamespaceName(namespaceName);
+    OpenNamespaceSyncDTO request = new OpenNamespaceSyncDTO();
+    request.setSyncToNamespaces(Collections.singletonList(namespaceIdentifier));
+    request.setSyncItems(Collections.emptyList());
+    return request;
   }
 }

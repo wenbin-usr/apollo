@@ -75,9 +75,10 @@ public class ItemController implements ItemManagementApi {
   @Override
   public ResponseEntity<OpenItemDTO> getItem(String appId, String env, String clusterName,
       String namespaceName, String key) {
-    if (shouldHideConfigToCurrentUser(appId, env, clusterName, namespaceName)) {
+    if (shouldHideConfigToPortalUser(appId, env, clusterName, namespaceName)) {
       return ResponseEntity.ok().build();
     }
+    requireConfigReadForUserToken(appId, env, clusterName, namespaceName);
     return ResponseEntity
         .ok(this.itemOpenApiService.getItem(appId, env, clusterName, namespaceName, key));
   }
@@ -154,9 +155,10 @@ public class ItemController implements ItemManagementApi {
       String clusterName, String namespaceName, Integer page, Integer size) {
     int resolvedPage = page == null ? DEFAULT_PAGE : page;
     int resolvedSize = size == null ? DEFAULT_SIZE : size;
-    if (shouldHideConfigToCurrentUser(appId, env, clusterName, namespaceName)) {
+    if (shouldHideConfigToPortalUser(appId, env, clusterName, namespaceName)) {
       return ResponseEntity.ok(emptyPage(resolvedPage, resolvedSize));
     }
+    requireConfigReadForUserToken(appId, env, clusterName, namespaceName);
     return ResponseEntity.ok(this.itemOpenApiService.findItemsByNamespace(appId, env, clusterName,
         namespaceName, resolvedPage, resolvedSize));
   }
@@ -164,9 +166,10 @@ public class ItemController implements ItemManagementApi {
   @Override
   public ResponseEntity<List<OpenItemDTO>> findBranchItems(String appId, String env,
       String clusterName, String namespaceName, String branchName) {
-    if (shouldHideConfigToCurrentUser(appId, env, branchName, namespaceName)) {
+    if (shouldHideConfigToPortalUser(appId, env, branchName, namespaceName)) {
       return ResponseEntity.ok(Collections.emptyList());
     }
+    requireConfigReadForUserToken(appId, env, branchName, namespaceName);
     return ResponseEntity
         .ok(this.itemOpenApiService.findBranchItems(appId, env, branchName, namespaceName));
   }
@@ -188,6 +191,8 @@ public class ItemController implements ItemManagementApi {
   public ResponseEntity<List<OpenItemDiffDTO>> compareItems(String appId, String env,
       String clusterName, String namespaceName, OpenNamespaceSyncDTO model) {
     checkModel(!isInvalid(model));
+    requireConfigReadForUserToken(appId, env, clusterName, namespaceName);
+    requireSyncNamespacesReadableForUserToken(model);
     List<OpenItemDiffDTO> itemDiffs =
         this.itemOpenApiService.compareItems(appId, env, clusterName, namespaceName, model);
     if (UserIdentityConstants.USER.equals(UserIdentityContextHolder.getAuthType())) {
@@ -269,7 +274,9 @@ public class ItemController implements ItemManagementApi {
   }
 
   private String resolveOperator(String queryOperator, String payloadOperator) {
-    if (UserIdentityConstants.USER.equals(UserIdentityContextHolder.getAuthType())) {
+    String authType = UserIdentityContextHolder.getAuthType();
+    if (UserIdentityConstants.USER.equals(authType)
+        || UserIdentityConstants.USER_TOKEN.equals(authType)) {
       UserInfo loginUser = userInfoHolder.getUser();
       if (loginUser == null || StringUtils.isBlank(loginUser.getUserId())) {
         throw new BadRequestException("Current user not found");
@@ -277,7 +284,7 @@ public class ItemController implements ItemManagementApi {
       return loginUser.getUserId();
     }
 
-    if (UserIdentityConstants.CONSUMER.equals(UserIdentityContextHolder.getAuthType())) {
+    if (UserIdentityConstants.CONSUMER.equals(authType)) {
       String operator = StringUtils.isBlank(queryOperator) ? payloadOperator : queryOperator;
       RequestPrecondition.checkArguments(!StringUtils.isContainEmpty(operator),
           "operator should not be null or empty");
@@ -287,15 +294,33 @@ public class ItemController implements ItemManagementApi {
       return operator;
     }
 
-    throw new BadRequestException("Unsupported auth type: %s",
-        UserIdentityContextHolder.getAuthType());
+    throw new BadRequestException("Unsupported auth type: %s", authType);
   }
 
-  private boolean shouldHideConfigToCurrentUser(String appId, String env, String clusterName,
+  private boolean shouldHideConfigToPortalUser(String appId, String env, String clusterName,
       String namespaceName) {
     return UserIdentityConstants.USER.equals(UserIdentityContextHolder.getAuthType())
         && unifiedPermissionValidator.shouldHideConfigToCurrentUser(appId, env, clusterName,
             namespaceName);
+  }
+
+  private void requireConfigReadForUserToken(String appId, String env, String clusterName,
+      String namespaceName) {
+    if (UserIdentityConstants.USER_TOKEN.equals(UserIdentityContextHolder.getAuthType())
+        && unifiedPermissionValidator.shouldHideConfigToCurrentUser(appId, env, clusterName,
+            namespaceName)) {
+      throw new AccessDeniedException("Access is denied");
+    }
+  }
+
+  private void requireSyncNamespacesReadableForUserToken(OpenNamespaceSyncDTO model) {
+    if (!UserIdentityConstants.USER_TOKEN.equals(UserIdentityContextHolder.getAuthType())) {
+      return;
+    }
+    for (OpenNamespaceIdentifier namespaceIdentifier : model.getSyncToNamespaces()) {
+      requireConfigReadForUserToken(namespaceIdentifier.getAppId(), namespaceIdentifier.getEnv(),
+          namespaceIdentifier.getClusterName(), namespaceIdentifier.getNamespaceName());
+    }
   }
 
   private OpenItemPageDTO emptyPage(Integer page, Integer size) {

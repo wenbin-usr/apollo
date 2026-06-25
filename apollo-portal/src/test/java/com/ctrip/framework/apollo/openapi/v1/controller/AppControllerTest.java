@@ -17,6 +17,7 @@
 package com.ctrip.framework.apollo.openapi.v1.controller;
 
 import com.ctrip.framework.apollo.openapi.model.OpenAppDTO;
+import com.ctrip.framework.apollo.openapi.model.OpenCreateAppDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenEnvClusterDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenEnvClusterInfo;
 import com.ctrip.framework.apollo.openapi.model.OpenMissEnvDTO;
@@ -46,10 +47,10 @@ import com.ctrip.framework.apollo.portal.util.RoleUtils;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,7 +63,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
@@ -79,7 +80,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 /**
  * @author wxq
  */
-@RunWith(SpringRunner.class)
+@ExtendWith(SpringExtension.class)
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {"api.pool.max.total=100", "api.pool.max.per.route=100",
@@ -138,13 +139,15 @@ public class AppControllerTest {
 
   private final Gson gson = new Gson();
 
-  @Before
+  @BeforeEach
   public void setUpSecurityMocks() {
     when(unifiedPermissionValidator.hasCreateApplicationPermission()).thenReturn(true);
     when(unifiedPermissionValidator.hasCreateNamespacePermission(Mockito.any()))
         .thenReturn(true);
     when(unifiedPermissionValidator.isAppAdmin(Mockito.anyString())).thenReturn(true);
     when(unifiedPermissionValidator.isSuperAdmin()).thenReturn(true);
+    when(unifiedPermissionValidator.hasReadApplicationPermission(Mockito.anyString()))
+        .thenReturn(true);
 
     UserInfo userInfo = new UserInfo();
     userInfo.setUserId("test");
@@ -153,9 +156,34 @@ public class AppControllerTest {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.CONSUMER);
   }
 
-  @After
+  @AfterEach
   public void tearDown() {
     UserIdentityContextHolder.clear();
+  }
+
+  @Test
+  public void testCreateAppForUserTokenUsesCurrentTokenUser() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    UserInfo tokenUser = new UserInfo();
+    tokenUser.setUserId("token-user");
+    when(userInfoHolder.getUser()).thenReturn(tokenUser);
+
+    OpenAppDTO app = new OpenAppDTO();
+    app.setAppId("user-token-app");
+    app.setDataChangeCreatedBy("spoofed-user");
+    OpenCreateAppDTO request = new OpenCreateAppDTO();
+    request.setApp(app);
+
+    mockMvc.perform(post("/openapi/v1/apps").contentType(MediaType.APPLICATION_JSON)
+        .content(gson.toJson(request))).andExpect(MockMvcResultMatchers.status().isOk());
+
+    ArgumentCaptor<OpenCreateAppDTO> requestCaptor =
+        ArgumentCaptor.forClass(OpenCreateAppDTO.class);
+    ArgumentCaptor<String> operatorCaptor = ArgumentCaptor.forClass(String.class);
+    Mockito.verify(appOpenApiService).createApp(requestCaptor.capture(), operatorCaptor.capture());
+    assertEquals("token-user", operatorCaptor.getValue());
+    assertEquals("token-user", requestCaptor.getValue().getApp().getDataChangeCreatedBy());
+    assertEquals("token-user", requestCaptor.getValue().getApp().getDataChangeLastModifiedBy());
   }
 
   @Test
@@ -181,6 +209,19 @@ public class AppControllerTest {
     @SuppressWarnings("unchecked")
     List<String> appIds = appIdsCaptor.getValue();
     assertEquals(authorizedAppIds, Sets.newHashSet(appIds));
+  }
+
+  @Test
+  public void findAppsShouldRejectUserTokenWhenRequestedAppIsOutsideScope() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.hasReadApplicationPermission("app1")).thenReturn(true);
+    when(unifiedPermissionValidator.hasReadApplicationPermission("secret-app")).thenReturn(false);
+
+    this.mockMvc
+        .perform(MockMvcRequestBuilders.get("/openapi/v1/apps").param("appIds", "app1,secret-app"))
+        .andExpect(MockMvcResultMatchers.status().isForbidden());
+
+    verify(appOpenApiService, never()).getAppsInfo(anyList());
   }
 
   @Test
@@ -273,11 +314,35 @@ public class AppControllerTest {
     List<OpenAppDTO> apps = Lists.newArrayList(app1, app2);
 
     when(appOpenApiService.getAllApps()).thenReturn(apps);
+    when(unifiedPermissionValidator.hasReadApplicationPermission(Mockito.anyString()))
+        .thenReturn(false);
 
     mockMvc.perform(MockMvcRequestBuilders.get("/openapi/v1/apps"))
         .andExpect(MockMvcResultMatchers.status().isOk())
         .andExpect(MockMvcResultMatchers.jsonPath("$.[0].appId").value("app1"))
         .andExpect(MockMvcResultMatchers.jsonPath("$.[1].appId").value("app2"));
+
+    Mockito.verify(appOpenApiService).getAllApps();
+    Mockito.verify(unifiedPermissionValidator, Mockito.never())
+        .hasReadApplicationPermission(Mockito.anyString());
+  }
+
+  @Test
+  public void testFindAllAppsFiltersUserTokenScope() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    OpenAppDTO app1 = new OpenAppDTO();
+    app1.setAppId("app1");
+    OpenAppDTO app2 = new OpenAppDTO();
+    app2.setAppId("app2");
+    when(appOpenApiService.getAllApps()).thenReturn(Lists.newArrayList(app1, app2));
+    when(unifiedPermissionValidator.hasReadApplicationPermission(Mockito.anyString()))
+        .thenReturn(false);
+    when(unifiedPermissionValidator.hasReadApplicationPermission("app1")).thenReturn(true);
+
+    mockMvc.perform(MockMvcRequestBuilders.get("/openapi/v1/apps"))
+        .andExpect(MockMvcResultMatchers.status().isOk())
+        .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(1))
+        .andExpect(MockMvcResultMatchers.jsonPath("$.[0].appId").value("app1"));
 
     Mockito.verify(appOpenApiService).getAllApps();
   }
@@ -428,6 +493,56 @@ public class AppControllerTest {
     Mockito.verify(rolePermissionService).findUserRoles(loginUser.getUserId());
     Mockito.verify(appOpenApiService).getAppsBySelf(Collections.emptySet(), page, size);
     Mockito.verify(consumerAuthUtil, never()).retrieveConsumerIdFromCtx();
+  }
+
+  @Test
+  public void testFindAppsAuthorizedForUserTokenUsesReadableApps() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    OpenAppDTO app1 = new OpenAppDTO();
+    app1.setAppId("app1");
+    OpenAppDTO app2 = new OpenAppDTO();
+    app2.setAppId("app2");
+    when(appOpenApiService.getAllApps()).thenReturn(Lists.newArrayList(app1, app2));
+    when(unifiedPermissionValidator.hasReadApplicationPermission(Mockito.anyString()))
+        .thenReturn(false);
+    when(unifiedPermissionValidator.hasReadApplicationPermission("app1")).thenReturn(true);
+
+    mockMvc.perform(MockMvcRequestBuilders.get("/openapi/v1/apps/authorized"))
+        .andExpect(MockMvcResultMatchers.status().isOk())
+        .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(1))
+        .andExpect(MockMvcResultMatchers.jsonPath("$.[0].appId").value("app1"));
+
+    Mockito.verify(appOpenApiService).getAllApps();
+    Mockito.verify(consumerAuthUtil, never()).retrieveConsumerIdFromCtx();
+    Mockito.verify(appOpenApiService, never()).getAppsInfo(Mockito.anyList());
+  }
+
+  @Test
+  public void testGetAppsBySelfForUserTokenUsesReadableApps() throws Exception {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    OpenAppDTO app1 = new OpenAppDTO();
+    app1.setAppId("app1");
+    OpenAppDTO app2 = new OpenAppDTO();
+    app2.setAppId("app2");
+    OpenAppDTO app3 = new OpenAppDTO();
+    app3.setAppId("app3");
+    when(appOpenApiService.getAllApps()).thenReturn(Lists.newArrayList(app1, app2, app3));
+    when(unifiedPermissionValidator.hasReadApplicationPermission(Mockito.anyString()))
+        .thenReturn(false);
+    when(unifiedPermissionValidator.hasReadApplicationPermission("app1")).thenReturn(true);
+    when(unifiedPermissionValidator.hasReadApplicationPermission("app2")).thenReturn(true);
+
+    mockMvc
+        .perform(MockMvcRequestBuilders.get("/openapi/v1/apps/by-self").param("page", "0")
+            .param("size", "1"))
+        .andExpect(MockMvcResultMatchers.status().isOk())
+        .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(1))
+        .andExpect(MockMvcResultMatchers.jsonPath("$.[0].appId").value("app1"));
+
+    Mockito.verify(appOpenApiService).getAllApps();
+    Mockito.verify(consumerAuthUtil, never()).retrieveConsumerIdFromCtx();
+    Mockito.verify(appOpenApiService, never()).getAppsBySelf(Mockito.anySet(), Mockito.anyInt(),
+        Mockito.anyInt());
   }
 
   @Test

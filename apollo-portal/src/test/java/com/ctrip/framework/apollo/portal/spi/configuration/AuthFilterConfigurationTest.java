@@ -17,6 +17,7 @@
 package com.ctrip.framework.apollo.portal.spi.configuration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -24,12 +25,19 @@ import com.ctrip.framework.apollo.openapi.filter.ConsumerAuthenticationFilter;
 import com.ctrip.framework.apollo.openapi.util.ConsumerAuditUtil;
 import com.ctrip.framework.apollo.openapi.util.ConsumerAuthUtil;
 import com.ctrip.framework.apollo.portal.filter.PortalUserSessionFilter;
+import com.ctrip.framework.apollo.portal.filter.UserTokenAuthenticationFilter;
 import com.ctrip.framework.apollo.portal.filter.UserTypeResolverFilter;
+import com.ctrip.framework.apollo.portal.service.UserTokenService;
+import com.ctrip.framework.apollo.portal.util.UserTokenAuditUtil;
+import com.ctrip.framework.apollo.portal.util.UserTokenAuthUtil;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.core.env.Environment;
 
+/**
+ * Unit tests for portal authentication filter registration and ordering.
+ */
 public class AuthFilterConfigurationTest {
 
   @Test
@@ -43,6 +51,11 @@ public class AuthFilterConfigurationTest {
             mock(ConsumerAuditUtil.class));
     FilterRegistrationBean<UserTypeResolverFilter> userTypeResolverFilter =
         configuration.authTypeResolverFilter();
+    UserTokenAuthenticationFilter userTokenAuthenticationFilter =
+        configuration.userTokenAuthenticationFilter(mock(UserTokenService.class),
+            mock(UserTokenAuthUtil.class), mock(UserTokenAuditUtil.class));
+    FilterRegistrationBean<UserTokenAuthenticationFilter> userTokenFilterRegistration =
+        configuration.userTokenFilterRegistration(userTokenAuthenticationFilter);
 
     assertTrue(portalUserSessionFilter.getOrder() < consumerAuthenticationFilter.getOrder());
     assertTrue(consumerAuthenticationFilter.getOrder() < userTypeResolverFilter.getOrder());
@@ -50,5 +63,7 @@ public class AuthFilterConfigurationTest {
     assertEquals(Collections.singleton("/openapi/*"),
         consumerAuthenticationFilter.getUrlPatterns());
     assertEquals(Collections.singleton("/*"), userTypeResolverFilter.getUrlPatterns());
+    assertFalse(userTokenFilterRegistration.isEnabled());
+    assertTrue(userTokenFilterRegistration.getUrlPatterns().isEmpty());
   }
 }

@@ -55,6 +55,7 @@ public class ClusterController implements ClusterManagementApi {
 
   @Override
   public ResponseEntity<OpenClusterDTO> getCluster(String appId, String clusterName, String env) {
+    requireReadApplicationPermissionForUserToken(appId);
     return ResponseEntity.ok(this.clusterOpenApiService.getCluster(appId, env, clusterName));
   }
 
@@ -70,6 +71,7 @@ public class ClusterController implements ClusterManagementApi {
     }
 
     String clusterName = cluster.getName();
+    requireCreateClusterPermissionForUserToken(appId, env, clusterName);
     String operator = resolveOperator(cluster.getDataChangeCreatedBy());
     cluster.setDataChangeLastModifiedBy(operator);
     cluster.setDataChangeCreatedBy(operator);
@@ -117,11 +119,34 @@ public class ClusterController implements ClusterManagementApi {
       }
       throw new AccessDeniedException("App admin permission is required");
     }
+    if (UserIdentityConstants.USER_TOKEN.equals(authType)) {
+      if (unifiedPermissionValidator.isSuperAdmin()) {
+        return;
+      }
+      throw new AccessDeniedException("Super admin permission is required");
+    }
     throw new AccessDeniedException("Access is denied");
   }
 
+  private void requireReadApplicationPermissionForUserToken(String appId) {
+    if (UserIdentityConstants.USER_TOKEN.equals(UserIdentityContextHolder.getAuthType())
+        && !unifiedPermissionValidator.hasReadApplicationPermission(appId)) {
+      throw new AccessDeniedException("Access is denied");
+    }
+  }
+
+  private void requireCreateClusterPermissionForUserToken(String appId, String env,
+      String clusterName) {
+    if (UserIdentityConstants.USER_TOKEN.equals(UserIdentityContextHolder.getAuthType())
+        && !unifiedPermissionValidator.hasCreateClusterPermission(appId, env, clusterName)) {
+      throw new AccessDeniedException("Create cluster permission is required");
+    }
+  }
+
   private String resolveOperator(String operator) {
-    if (UserIdentityConstants.USER.equals(UserIdentityContextHolder.getAuthType())) {
+    String authType = UserIdentityContextHolder.getAuthType();
+    if (UserIdentityConstants.USER.equals(authType)
+        || UserIdentityConstants.USER_TOKEN.equals(authType)) {
       UserInfo loginUser = userInfoHolder.getUser();
       if (loginUser == null || StringUtils.isBlank(loginUser.getUserId())) {
         throw new BadRequestException("Current user not found");

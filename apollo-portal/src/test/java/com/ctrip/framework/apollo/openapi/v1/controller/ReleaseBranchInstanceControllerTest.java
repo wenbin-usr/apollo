@@ -32,6 +32,7 @@ import com.ctrip.framework.apollo.common.dto.NamespaceDTO;
 import com.ctrip.framework.apollo.common.dto.PageDTO;
 import com.ctrip.framework.apollo.common.dto.ReleaseDTO;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
+import com.ctrip.framework.apollo.openapi.model.NamespaceGrayDelReleaseDTO;
 import com.ctrip.framework.apollo.openapi.model.NamespaceReleaseDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenGrayReleaseRuleDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenGrayReleaseRuleItemDTO;
@@ -45,6 +46,7 @@ import com.ctrip.framework.apollo.portal.component.config.PortalConfig;
 import com.ctrip.framework.apollo.portal.constant.UserIdentityConstants;
 import com.ctrip.framework.apollo.portal.entity.bo.KVEntity;
 import com.ctrip.framework.apollo.portal.entity.bo.UserInfo;
+import com.ctrip.framework.apollo.portal.entity.model.NamespaceGrayDelReleaseModel;
 import com.ctrip.framework.apollo.portal.entity.model.NamespaceReleaseModel;
 import com.ctrip.framework.apollo.portal.entity.vo.ReleaseCompareResult;
 import com.ctrip.framework.apollo.portal.environment.Env;
@@ -160,6 +162,38 @@ class ReleaseBranchInstanceControllerTest {
   }
 
   @Test
+  void createReleaseShouldUseCurrentUserTokenUserAndIgnorePayloadReleasedBy() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    UserInfo tokenUser = userInfo("token-user");
+    when(userInfoHolder.getUser()).thenReturn(tokenUser);
+    when(releaseService.publish(any(NamespaceReleaseModel.class))).thenReturn(release(102L));
+
+    NamespaceReleaseDTO request = releaseRequest("release title", "spoofed-user", false);
+
+    releaseController.createRelease(APP_ID, ENV, CLUSTER, NAMESPACE, request, null);
+
+    ArgumentCaptor<NamespaceReleaseModel> modelCaptor =
+        ArgumentCaptor.forClass(NamespaceReleaseModel.class);
+    verify(releaseService).publish(modelCaptor.capture());
+    assertThat(modelCaptor.getValue().getReleasedBy()).isEqualTo("token-user");
+    verify(userService, never()).findByUserId("spoofed-user");
+  }
+
+  @Test
+  void createReleaseShouldRejectUserTokenEmergencyPublishWhenEnvDisallowsIt() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(portalConfig.isEmergencyPublishAllowed(Env.DEV)).thenReturn(false);
+
+    NamespaceReleaseDTO request = releaseRequest("release title", "spoofed-user", true);
+
+    assertThatThrownBy(
+        () -> releaseController.createRelease(APP_ID, ENV, CLUSTER, NAMESPACE, request, null))
+        .isInstanceOf(BadRequestException.class);
+
+    verify(releaseService, never()).publish(any(NamespaceReleaseModel.class));
+  }
+
+  @Test
   void createReleaseShouldKeepConsumerPayloadReleasedByForLegacyClients() {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.CONSUMER);
     when(releaseService.publish(any(NamespaceReleaseModel.class))).thenReturn(release(101L));
@@ -253,6 +287,33 @@ class ReleaseBranchInstanceControllerTest {
   }
 
   @Test
+  void createGrayReleaseShouldRejectUserTokenEmergencyPublishWhenEnvDisallowsIt() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(portalConfig.isEmergencyPublishAllowed(Env.DEV)).thenReturn(false);
+
+    NamespaceReleaseDTO request = releaseRequest("gray release", "spoofed-user", true);
+
+    assertThatThrownBy(() -> releaseController.createGrayRelease(APP_ID, ENV, CLUSTER, NAMESPACE,
+        BRANCH, request, null)).isInstanceOf(BadRequestException.class);
+
+    verify(releaseService, never()).publish(any(NamespaceReleaseModel.class));
+  }
+
+  @Test
+  void createGrayDelReleaseShouldRejectUserTokenEmergencyPublishWhenEnvDisallowsIt() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(portalConfig.isEmergencyPublishAllowed(Env.DEV)).thenReturn(false);
+
+    NamespaceGrayDelReleaseDTO request =
+        grayDelReleaseRequest("gray delete release", "spoofed-user", true);
+
+    assertThatThrownBy(() -> releaseController.createGrayDelRelease(APP_ID, ENV, CLUSTER, NAMESPACE,
+        BRANCH, request, null)).isInstanceOf(BadRequestException.class);
+
+    verify(releaseService, never()).publish(any(NamespaceGrayDelReleaseModel.class), anyString());
+  }
+
+  @Test
   void compareReleaseShouldReturnGeneratedDiffShape() {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER);
     when(releaseService.findReleaseById(Env.DEV, 1L)).thenReturn(release(1L));
@@ -291,6 +352,20 @@ class ReleaseBranchInstanceControllerTest {
   @Test
   void compareReleaseShouldRejectHiddenPortalRelease() {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER);
+    when(releaseService.findReleaseById(Env.DEV, 1L)).thenReturn(release(1L));
+    when(releaseService.findReleaseById(Env.DEV, 2L)).thenReturn(release(2L));
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThatThrownBy(() -> releaseController.compareRelease(ENV, 1L, 2L))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verify(releaseService, never()).compare(Env.DEV, 1L, 2L);
+  }
+
+  @Test
+  void compareReleaseShouldRejectHiddenUserTokenRelease() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
     when(releaseService.findReleaseById(Env.DEV, 1L)).thenReturn(release(1L));
     when(releaseService.findReleaseById(Env.DEV, 2L)).thenReturn(release(2L));
     when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
@@ -368,6 +443,32 @@ class ReleaseBranchInstanceControllerTest {
   }
 
   @Test
+  void loadLatestActiveReleaseShouldRejectUserTokenWithoutConfigRead() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThatThrownBy(
+        () -> releaseController.loadLatestActiveRelease(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verifyNoInteractions(releaseService);
+  }
+
+  @Test
+  void findActiveReleasesShouldRejectUserTokenWithoutConfigRead() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThatThrownBy(
+        () -> releaseController.findActiveReleases(APP_ID, ENV, CLUSTER, NAMESPACE, 0, 10))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verifyNoInteractions(releaseService);
+  }
+
+  @Test
   void loadLatestActiveReleaseShouldRejectConsumerWithoutReleasePermission() {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.CONSUMER);
     when(unifiedPermissionValidator.hasReleaseNamespacePermission(APP_ID, ENV, CLUSTER, NAMESPACE))
@@ -409,6 +510,21 @@ class ReleaseBranchInstanceControllerTest {
   }
 
   @Test
+  void createBranchShouldUseCurrentUserTokenUser() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(userInfoHolder.getUser()).thenReturn(userInfo("token-user"));
+    when(namespaceBranchService.createBranch(APP_ID, Env.DEV, CLUSTER, NAMESPACE, "token-user"))
+        .thenReturn(namespace(BRANCH));
+
+    ResponseEntity<OpenNamespaceDTO> response =
+        namespaceBranchController.createBranch(APP_ID, ENV, CLUSTER, NAMESPACE, "spoofed-user");
+
+    assertThat(response.getBody()).isNotNull();
+    verify(namespaceBranchService).createBranch(APP_ID, Env.DEV, CLUSTER, NAMESPACE, "token-user");
+    verify(userService, never()).findByUserId("spoofed-user");
+  }
+
+  @Test
   void mergeBranchShouldUseCurrentPortalUserAndDeleteFlag() {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER);
     when(namespaceBranchService.merge(APP_ID, Env.DEV, CLUSTER, NAMESPACE, BRANCH, "merge title",
@@ -440,6 +556,19 @@ class ReleaseBranchInstanceControllerTest {
     assertThat(response.getId()).isEqualTo(104L);
     verify(namespaceBranchService).merge(APP_ID, Env.DEV, CLUSTER, NAMESPACE, BRANCH, "merge title",
         "release comment", false, true, PORTAL_USER);
+  }
+
+  @Test
+  void mergeBranchShouldRejectUserTokenEmergencyPublishWhenEnvDisallowsIt() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(portalConfig.isEmergencyPublishAllowed(Env.DEV)).thenReturn(false);
+
+    NamespaceReleaseDTO request = releaseRequest("merge title", "spoofed-user", true);
+
+    assertThatThrownBy(() -> namespaceBranchController.merge(APP_ID, ENV, CLUSTER, NAMESPACE,
+        BRANCH, null, request)).isInstanceOf(BadRequestException.class);
+
+    verifyNoInteractions(namespaceBranchService);
   }
 
   @Test
@@ -481,6 +610,62 @@ class ReleaseBranchInstanceControllerTest {
   }
 
   @Test
+  void canCreateBranchShouldRequireUserTokenModifyPermission() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.hasModifyNamespacePermission(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThat(namespaceBranchController.canCreateBranch(APP_ID, ENV, CLUSTER, NAMESPACE)).isTrue();
+  }
+
+  @Test
+  void canMergeBranchShouldRequireUserTokenReleasePermission() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.hasReleaseNamespacePermission(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThat(namespaceBranchController.canMergeBranch(APP_ID, ENV, CLUSTER, NAMESPACE)).isTrue();
+    verify(unifiedPermissionValidator, never()).hasModifyNamespacePermission(APP_ID, ENV, CLUSTER,
+        NAMESPACE);
+  }
+
+  @Test
+  void canUpdateBranchRulesShouldRequireUserTokenModifyPermission() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.hasModifyNamespacePermission(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThat(namespaceBranchController.canUpdateBranchRules(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .isTrue();
+  }
+
+  @Test
+  void findBranchShouldRejectUserTokenWithoutConfigRead() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThatThrownBy(
+        () -> namespaceBranchController.findBranch(APP_ID, ENV, CLUSTER, NAMESPACE, false))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verifyNoInteractions(namespaceBranchService);
+  }
+
+  @Test
+  void getBranchGrayRulesShouldRejectUserTokenWithoutConfigRead() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThatThrownBy(
+        () -> namespaceBranchController.getBranchGrayRules(APP_ID, ENV, CLUSTER, NAMESPACE, BRANCH))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verifyNoInteractions(namespaceBranchService);
+  }
+
+  @Test
   void getByNamespaceShouldReturnGeneratedInstancePage() {
     when(instanceService.getByNamespace(Env.DEV, APP_ID, CLUSTER, NAMESPACE, "client-app", 0, 20))
         .thenReturn(instancePage());
@@ -512,6 +697,19 @@ class ReleaseBranchInstanceControllerTest {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.CONSUMER);
     when(unifiedPermissionValidator.hasReleaseNamespacePermission(APP_ID, ENV, CLUSTER, NAMESPACE))
         .thenReturn(false);
+
+    assertThatThrownBy(
+        () -> instanceController.getByNamespace(ENV, APP_ID, CLUSTER, NAMESPACE, 0, 20, null))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verifyNoInteractions(instanceService);
+  }
+
+  @Test
+  void getByNamespaceShouldRejectUserTokenWithoutConfigRead() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
 
     assertThatThrownBy(
         () -> instanceController.getByNamespace(ENV, APP_ID, CLUSTER, NAMESPACE, 0, 20, null))
@@ -578,10 +776,36 @@ class ReleaseBranchInstanceControllerTest {
   }
 
   @Test
+  void getByReleaseShouldRejectUserTokenWithoutConfigRead() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(releaseService.findReleaseById(Env.DEV, 10L)).thenReturn(release(10L));
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThatThrownBy(() -> instanceController.getByRelease(ENV, 10L, 0, 20))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verify(instanceService, never()).getByRelease(Env.DEV, 10L, 0, 20);
+  }
+
+  @Test
   void getByReleasesNotInShouldRejectConsumerWithoutNamespacePermission() {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.CONSUMER);
     when(unifiedPermissionValidator.hasReleaseNamespacePermission(APP_ID, ENV, CLUSTER, NAMESPACE))
         .thenReturn(false);
+
+    assertThatThrownBy(() -> instanceController.getByReleasesAndNamespaceNotIn(ENV, APP_ID, CLUSTER,
+        NAMESPACE, "1,2")).isInstanceOf(AccessDeniedException.class);
+
+    verify(instanceService, never()).getByReleasesNotIn(eq(Env.DEV), eq(APP_ID), eq(CLUSTER),
+        eq(NAMESPACE), any());
+  }
+
+  @Test
+  void getByReleasesNotInShouldRejectUserTokenWithoutConfigRead() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
 
     assertThatThrownBy(() -> instanceController.getByReleasesAndNamespaceNotIn(ENV, APP_ID, CLUSTER,
         NAMESPACE, "1,2")).isInstanceOf(AccessDeniedException.class);
@@ -628,6 +852,20 @@ class ReleaseBranchInstanceControllerTest {
   }
 
   @Test
+  void getInstanceCountByNamespaceShouldRejectUserTokenWithoutConfigRead() {
+    UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER_TOKEN);
+    when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
+        .thenReturn(true);
+
+    assertThatThrownBy(
+        () -> instanceController.getInstanceCountByNamespace(ENV, APP_ID, CLUSTER, NAMESPACE))
+        .isInstanceOf(AccessDeniedException.class);
+
+    verify(instanceService, never()).getInstanceCountByNamespace(APP_ID, Env.DEV, CLUSTER,
+        NAMESPACE);
+  }
+
+  @Test
   void getInstanceCountByNamespaceShouldReturnZeroWhenPortalUserShouldHideConfig() {
     UserIdentityContextHolder.setAuthType(UserIdentityConstants.USER);
     when(unifiedPermissionValidator.shouldHideConfigToCurrentUser(APP_ID, ENV, CLUSTER, NAMESPACE))
@@ -648,6 +886,17 @@ class ReleaseBranchInstanceControllerTest {
     request.setReleaseComment("release comment");
     request.setReleasedBy(releasedBy);
     request.setIsEmergencyPublish(emergencyPublish);
+    return request;
+  }
+
+  private NamespaceGrayDelReleaseDTO grayDelReleaseRequest(String title, String releasedBy,
+      boolean emergencyPublish) {
+    NamespaceGrayDelReleaseDTO request = new NamespaceGrayDelReleaseDTO();
+    request.setReleaseTitle(title);
+    request.setReleaseComment("release comment");
+    request.setReleasedBy(releasedBy);
+    request.setIsEmergencyPublish(emergencyPublish);
+    request.setGrayDelKeys(Collections.singletonList("timeout"));
     return request;
   }
 
