@@ -748,72 +748,72 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
 ```mermaid
 sequenceDiagram
     autonumber
-    box rgba(200,220,255,0.4) 客户端
+    box lightblue 客户端
     participant Client as Apollo Client
     end
-    box rgba(200,255,200,0.4) Servlet 容器线程池
-    participant T1 as 容器线程 #1
-    participant T2 as 容器线程 #2
+    box lightgreen Servlet 容器线程池
+    participant T1 as 容器线程1
+    participant T2 as 容器线程2
     end
-    box rgba(255,240,200,0.4) Spring MVC
+    box lightyellow Spring MVC
     participant DS as DispatcherServlet
     participant HAA as RequestMappingHandlerAdapter
     participant WAM as WebAsyncManager
     participant ASWR as StandardServletAsyncWebRequest
     participant DR as DeferredResult
     end
-    box rgba(255,200,200,0.4) Apollo 业务
+    box mistyrose Apollo 业务
     participant Ctlr as NotificationControllerV2
     participant Reg as deferredResults Map
-    participant Listener as handleMessage (消息线程)
+    participant Listener as handleMessage 消息线程
     end
-    box rgba(220,220,255,0.4) Servlet 容器
+    box lavender Servlet 容器
     participant Ctx as AsyncContext
     end
 
     Client->>T1: GET /notifications/v2
     T1->>DS: doDispatch(req, resp)
-    DS->>HAA: handle → Controller 方法
+    DS->>HAA: handle 调用 Controller 方法
     HAA->>Ctlr: pollNotification(...)
     Ctlr->>DR: new DeferredResult(60s, 304)
     Ctlr->>Reg: put(watchedKey, wrapper)
-    Ctlr->>Ctlr: 查询 ReleaseMessage（无变更）
-    Ctlr-->>HAA: 返回 DeferredResult（未 setResult）
+    Ctlr->>Ctlr: 查询 ReleaseMessage 无变更
+    Ctlr-->>HAA: 返回 DeferredResult 未 setResult
     HAA->>WAM: startDeferredResultProcessing(deferredResult)
-    WAM->>WAM: CAS NOT_STARTED→ASYNC_PROCESSING
+    WAM->>WAM: CAS NOT_STARTED 到 ASYNC_PROCESSING
     WAM->>ASWR: setTimeout(60s)
-    WAM->>ASWR: addTimeoutHandler / addErrorHandler / addCompletionHandler
+    WAM->>ASWR: addTimeoutHandler 和 addErrorHandler 和 addCompletionHandler
     WAM->>ASWR: startAsync()
     ASWR->>Ctx: request.startAsync(req, resp)
-    ASWR->>Ctx: addListener(this); setTimeout(60s)
-    WAM->>DR: setResultHandler(lambda: applyPostProcess→setConcurrentResultAndDispatch)
-    Note over DR: result=RESULT_NONE, handler 已注入
+    ASWR->>Ctx: addListener(this) 和 setTimeout(60s)
+    WAM->>DR: setResultHandler 注入回调 applyPostProcess 后 setConcurrentResultAndDispatch
+    Note over DR: result 等于 RESULT_NONE handler 已注入
     WAM-->>DS: 返回
-    DS->>DS: asyncManager.isConcurrentHandlingStarted()==true
-    DS->>DS: return（不渲染，不 close 连接）
-    Note over T1: ★ 容器线程 #1 归还线程池<br/>HTTP socket 仍 open
+    DS->>DS: asyncManager.isConcurrentHandlingStarted() 返回 true
+    DS->>DS: return 不渲染 不 close 连接
+    Note over T1: 容器线程1 归还线程池<br/>HTTP socket 仍 open
 
-    Note over Listener: 后台：配置被发布<br/>消息线程被唤醒
-    Listener->>Reg: get(content) → List<wrapper>
+    Note over Listener: 后台配置被发布<br/>消息线程被唤醒
+    Listener->>Reg: get(content) 得到 wrapper 列表
     Listener->>DR: setResult(configNotification)
     DR->>DR: synchronized 双重检查
-    DR->>DR: result = configNotification
-    DR->>WAM: handler.handleResult(result) ★ 业务→Spring 桥梁
-    WAM->>WAM: applyPostProcess（拦截器后处理）
+    DR->>DR: result 等于 configNotification
+    DR->>WAM: handler.handleResult(result) 业务到 Spring 桥梁
+    WAM->>WAM: applyPostProcess 拦截器后处理
     WAM->>WAM: setConcurrentResultAndDispatch(result)
-    WAM->>WAM: CAS ASYNC_PROCESSING→RESULT_SET
-    WAM->>WAM: concurrentResult = result
+    WAM->>WAM: CAS ASYNC_PROCESSING 到 RESULT_SET
+    WAM->>WAM: concurrentResult 等于 result
     WAM->>ASWR: dispatch()
-    ASWR->>Ctx: asyncContext.dispatch() ★ 重新派发
+    ASWR->>Ctx: asyncContext.dispatch() 重新派发
 
-    Ctx->>T2: 容器分配线程 #2 重新走 filter+servlet
-    T2->>DS: doDispatch（第二次）
-    DS->>DS: asyncManager.hasConcurrentResult()==true
-    DS->>DS: mv = concurrentResult 转换为 ModelAndView/返回值
-    DS->>DS: processDispatchResult → ReturnValueHandler 写 JSON
+    Ctx->>T2: 容器分配线程2 重新走 filter 和 servlet
+    T2->>DS: doDispatch 第二次
+    DS->>DS: asyncManager.hasConcurrentResult() 返回 true
+    DS->>DS: mv 由 concurrentResult 转换为 ModelAndView 或返回值
+    DS->>DS: processDispatchResult 调用 ReturnValueHandler 写 JSON
     DS->>Ctx: asyncContext.complete()
-    Ctx-->>Client: 200 OK + ApolloConfigNotification
-    Note over Client: 收到变更，拉取最新配置
+    Ctx-->>Client: 200 OK 加 ApolloConfigNotification
+    Note over Client: 收到变更 拉取最新配置
 ```
 
 ### 超时分支时序图
@@ -822,8 +822,8 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant Client as Apollo Client
-    participant T1 as 容器线程 #1
-    participant T2 as 容器线程 #2(超时派发)
+    participant T1 as 容器线程1
+    participant T2 as 容器线程2 超时派发
     participant DS as DispatcherServlet
     participant WAM as WebAsyncManager
     participant ASWR as StandardServletAsyncWebRequest
@@ -833,17 +833,17 @@ sequenceDiagram
     Client->>T1: GET /notifications/v2
     T1->>DS: doDispatch
     DS->>WAM: startDeferredResultProcessing
-    WAM->>Ctx: startAsync + setTimeout(60s) + addListener
+    WAM->>Ctx: startAsync 和 setTimeout(60s) 和 addListener
     WAM->>DR: setResultHandler(...)
-    Note over T1: 容器线程 #1 释放，连接保持
+    Note over T1: 容器线程1 释放 连接保持
 
     Note over Ctx: 60s 内没有任何 setResult
-    Ctx->>ASWR: onTimeout(AsyncEvent) ★ 容器触发
+    Ctx->>ASWR: onTimeout(AsyncEvent) 容器触发
     ASWR->>ASWR: 执行 timeoutHandlers
-    ASWR->>WAM: 触发 startDeferredResultProcessing$0 lambda
+    ASWR->>WAM: 触发 startDeferredResultProcessing 超时回调 lambda
     WAM->>WAM: triggerAfterTimeout 拦截器
-    WAM->>DR: expired = true（标记过期）
-    WAM->>WAM: timeoutResult.get() → Apollo 的 304 响应
+    WAM->>DR: expired 等于 true 标记过期
+    WAM->>WAM: timeoutResult.get() 得到 Apollo 的 304 响应
     WAM->>WAM: setConcurrentResultAndDispatch(304)
     WAM->>ASWR: dispatch()
     ASWR->>Ctx: asyncContext.dispatch()
