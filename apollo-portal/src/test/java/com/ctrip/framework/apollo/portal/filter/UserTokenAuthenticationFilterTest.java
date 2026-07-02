@@ -16,8 +16,9 @@
  */
 package com.ctrip.framework.apollo.portal.filter;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -28,6 +29,7 @@ import com.ctrip.framework.apollo.portal.entity.po.UserToken;
 import com.ctrip.framework.apollo.portal.service.UserTokenService;
 import com.ctrip.framework.apollo.portal.util.UserTokenAuditUtil;
 import com.ctrip.framework.apollo.portal.util.UserTokenAuthUtil;
+import java.util.UUID;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.AfterEach;
@@ -37,6 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -106,6 +109,40 @@ class UserTokenAuthenticationFilterTest {
     verify(filterChain, never()).doFilter(request, response);
     org.junit.jupiter.api.Assertions.assertEquals(HttpServletResponse.SC_UNAUTHORIZED,
         response.getStatus());
+  }
+
+  @Test
+  void rateLimitedUserTokenReturnsTooManyRequestsWithoutErrorDispatch() throws Exception {
+    String tokenPrefix = "rate429_" + UUID.randomUUID();
+    String token = UserTokenService.TOKEN_PREFIX + tokenPrefix + "_secret";
+    UserToken userToken = new UserToken();
+    userToken.setId(1L);
+    userToken.setUserId("apollo");
+    userToken.setTokenPrefix(tokenPrefix);
+    userToken.setRateLimit(1);
+    when(userTokenService.authenticate(org.mockito.ArgumentMatchers.eq(token),
+        org.mockito.ArgumentMatchers.any())).thenReturn(userToken);
+
+    MockHttpServletRequest firstRequest = new MockHttpServletRequest("GET", "/openapi/v1/apps");
+    MockHttpServletResponse firstResponse = new MockHttpServletResponse();
+    firstRequest.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    filter.doFilter(firstRequest, firstResponse, filterChain);
+    SecurityContextHolder.clearContext();
+
+    MockHttpServletRequest limitedRequest = new MockHttpServletRequest("GET", "/openapi/v1/apps");
+    MockHttpServletResponse limitedResponse = new MockHttpServletResponse();
+    limitedRequest.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+
+    filter.doFilter(limitedRequest, limitedResponse, filterChain);
+
+    assertEquals(429, limitedResponse.getStatus());
+    assertNull(limitedResponse.getErrorMessage());
+    assertEquals(MediaType.APPLICATION_JSON_VALUE, limitedResponse.getContentType());
+    assertEquals("{\"message\":\"Too Many Requests, the flow is limited\"}",
+        limitedResponse.getContentAsString());
+    assertNull(SecurityContextHolder.getContext().getAuthentication());
+    verify(filterChain).doFilter(firstRequest, firstResponse);
+    verify(filterChain, never()).doFilter(limitedRequest, limitedResponse);
   }
 
   @Test

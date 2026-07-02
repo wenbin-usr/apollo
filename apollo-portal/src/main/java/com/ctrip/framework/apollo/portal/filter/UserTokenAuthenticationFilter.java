@@ -21,11 +21,13 @@ import com.ctrip.framework.apollo.portal.entity.po.UserToken;
 import com.ctrip.framework.apollo.portal.service.UserTokenService;
 import com.ctrip.framework.apollo.portal.util.UserTokenAuditUtil;
 import com.ctrip.framework.apollo.portal.util.UserTokenAuthUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.util.concurrent.RateLimiter;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import jakarta.servlet.FilterChain;
@@ -35,6 +37,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -51,6 +54,7 @@ public class UserTokenAuthenticationFilter extends OncePerRequestFilter {
   private static final String USER_ROLE = "ROLE_user";
   private static final int RATE_LIMITER_CACHE_MAX_SIZE = 20000;
   private static final int TOO_MANY_REQUESTS = 429;
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private static final Cache<String, RateLimiter> LIMITER = CacheBuilder.newBuilder()
       .expireAfterAccess(1, TimeUnit.HOURS).maximumSize(RATE_LIMITER_CACHE_MAX_SIZE).build();
@@ -87,7 +91,7 @@ public class UserTokenAuthenticationFilter extends OncePerRequestFilter {
 
     UserToken userToken = userTokenService.authenticate(token, request);
     if (userToken == null) {
-      response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized user token");
+      writeOpenApiError(response, HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized user token");
       return;
     }
 
@@ -96,12 +100,13 @@ public class UserTokenAuthenticationFilter extends OncePerRequestFilter {
       try {
         RateLimiter rateLimiter = getOrCreateRateLimiter(userToken.getTokenPrefix(), rateLimit);
         if (!rateLimiter.tryAcquire()) {
-          response.sendError(TOO_MANY_REQUESTS, "Too Many Requests, the flow is limited");
+          writeOpenApiError(response, TOO_MANY_REQUESTS, "Too Many Requests, the flow is limited");
           return;
         }
       } catch (Exception e) {
         logger.error("UserTokenAuthenticationFilter ratelimit error", e);
-        response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Rate limiting failed");
+        writeOpenApiError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            "Rate limiting failed");
         return;
       }
     }
@@ -123,6 +128,13 @@ public class UserTokenAuthenticationFilter extends OncePerRequestFilter {
       return null;
     }
     return token;
+  }
+
+  private void writeOpenApiError(HttpServletResponse response, int status, String message)
+      throws IOException {
+    response.setStatus(status);
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    OBJECT_MAPPER.writeValue(response.getWriter(), Map.of("message", message));
   }
 
   private RateLimiter getOrCreateRateLimiter(String key, Integer limitCount) {
