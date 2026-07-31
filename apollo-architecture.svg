@@ -208,7 +208,7 @@
   <text x="720" y="595" font-size="11" fill="#5b6b7c" font-weight="600">读取配置</text>
 
   <!-- ConfigService push to client (return path label) -->
-  <text x="610" y="425" font-size="10.5" fill="#6a1b9a" font-style="italic">↑ 实时推送更新</text>
+  <text x="610" y="415" font-size="10.5" fill="#6a1b9a" font-style="italic">↑ 实时推送更新</text>
 
   <!-- ============ Legend ============ -->
   <g transform="translate(110, 770)">
