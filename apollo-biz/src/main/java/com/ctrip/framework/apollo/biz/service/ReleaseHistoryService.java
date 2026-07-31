@@ -27,6 +27,7 @@ import com.ctrip.framework.apollo.core.utils.ApolloThreadFactory;
 import com.ctrip.framework.apollo.tracer.Tracer;
 import com.google.common.collect.Queues;
 import com.google.gson.Gson;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
@@ -201,14 +202,28 @@ public class ReleaseHistoryService {
       List<ReleaseHistory> cleanReleaseHistoryList = releaseHistoryRepository
           .findFirst100ByAppIdAndClusterNameAndNamespaceNameAndBranchNameAndIdLessThanEqualOrderByIdAsc(
               appId, clusterName, namespaceName, branchName, maxId.get());
-      Set<Long> releaseIds = cleanReleaseHistoryList.stream().map(ReleaseHistory::getReleaseId)
-          .collect(Collectors.toSet());
+      if (cleanReleaseHistoryList.isEmpty()) {
+        break;
+      }
+      List<Long> releaseHistoryIds =
+          cleanReleaseHistoryList.stream().map(ReleaseHistory::getId).collect(Collectors.toList());
+      Set<Long> releaseIds = new HashSet<>();
+      for (ReleaseHistory releaseHistory : cleanReleaseHistoryList) {
+        if (releaseHistory.getReleaseId() > 0) {
+          releaseIds.add(releaseHistory.getReleaseId());
+        }
+        if (releaseHistory.getPreviousReleaseId() > 0) {
+          releaseIds.add(releaseHistory.getPreviousReleaseId());
+        }
+      }
 
       transactionManager.execute(new TransactionCallbackWithoutResult() {
         @Override
         protected void doInTransactionWithoutResult(TransactionStatus status) {
-          releaseHistoryRepository.deleteAll(cleanReleaseHistoryList);
-          releaseRepository.deleteAllById(releaseIds);
+          releaseHistoryRepository.deletePhysicallyByIdIn(releaseHistoryIds);
+          if (!releaseIds.isEmpty()) {
+            releaseRepository.deletePhysicallyIfUnreferencedByIdIn(releaseIds);
+          }
         }
       });
       hasMore = cleanReleaseHistoryList.size() == 100;

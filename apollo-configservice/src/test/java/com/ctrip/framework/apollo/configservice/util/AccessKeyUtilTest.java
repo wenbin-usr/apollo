@@ -89,13 +89,88 @@ public class AccessKeyUtilTest {
   }
 
   @Test
+  public void testExtractAppIdFromRawConfigFileRequest() {
+    when(request.getServletPath()).thenReturn("/configfiles/raw/someAppId/default/application");
+
+    String appId = accessKeyUtil.extractAppIdFromRequest(request);
+
+    assertThat(appId).isEqualTo("someAppId");
+  }
+
+  @Test
+  public void testExtractAppIdFromRawConfigFileRequestShouldRejectAppIdWithTrailingSpace() {
+    when(request.getServletPath()).thenReturn("/configfiles/raw/mysql.example.test /default/application");
+
+    String appId = accessKeyUtil.extractAppIdFromRequest(request);
+
+    assertThat(appId).isNull();
+  }
+
+  @Test
   public void testExtractAppIdFromRequest4() {
+    when(request.getServletPath()).thenReturn("/configfiles/raw/someAppId/default/application");
+
+    String appId = accessKeyUtil.extractAppIdFromRequest(request);
+
+    assertThat(appId).isEqualTo("someAppId");
+  }
+
+  @Test
+  public void testExtractAppIdFromRequest5() {
     when(request.getServletPath()).thenReturn("/notifications/v2");
     when(request.getParameter("appId")).thenReturn("someAppId");
 
     String appId = accessKeyUtil.extractAppIdFromRequest(request);
 
     assertThat(appId).isEqualTo("someAppId");
+  }
+
+  @Test
+  public void testExtractAppIdFromV1NotificationRequest() {
+    when(request.getServletPath()).thenReturn("/notifications");
+    when(request.getParameter("appId")).thenReturn("someAppId");
+
+    String appId = accessKeyUtil.extractAppIdFromRequest(request);
+
+    assertThat(appId).isEqualTo("someAppId");
+  }
+
+  @Test
+  public void testExtractAppIdFromV1NotificationRequestShouldRejectAppIdWithTrailingSpace() {
+    when(request.getServletPath()).thenReturn("/notifications");
+    when(request.getParameter("appId")).thenReturn("mysql.example.test ");
+
+    String appId = accessKeyUtil.extractAppIdFromRequest(request);
+
+    assertThat(appId).isNull();
+  }
+
+  @Test
+  public void testExtractAppIdFromRequestShouldRejectAppIdWithDiacritic() {
+    when(request.getServletPath()).thenReturn("/configs/mysql.exámple.test/default/application");
+
+    String appId = accessKeyUtil.extractAppIdFromRequest(request);
+
+    assertThat(appId).isNull();
+  }
+
+  @Test
+  public void testExtractAppIdFromRequestShouldRejectAppIdWithTrailingSpace() {
+    when(request.getServletPath()).thenReturn("/configs/mysql.example.test /default/application");
+
+    String appId = accessKeyUtil.extractAppIdFromRequest(request);
+
+    assertThat(appId).isNull();
+  }
+
+  @Test
+  public void testExtractAppIdFromNotificationRequestShouldRejectAppIdWithTrailingSpace() {
+    when(request.getServletPath()).thenReturn("/notifications/v2");
+    when(request.getParameter("appId")).thenReturn("mysql.example.test ");
+
+    String appId = accessKeyUtil.extractAppIdFromRequest(request);
+
+    assertThat(appId).isNull();
   }
 
   @Test

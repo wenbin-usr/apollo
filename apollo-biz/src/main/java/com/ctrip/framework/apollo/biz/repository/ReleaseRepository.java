@@ -18,14 +18,14 @@ package com.ctrip.framework.apollo.biz.repository;
 
 import com.ctrip.framework.apollo.biz.entity.Release;
 
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.repository.query.Param;
-
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * @author Jason Song(song_s@ctrip.com)
@@ -59,6 +59,17 @@ public interface ReleaseRepository extends JpaRepository<Release, Long> {
       + "dataChangeLastModifiedBy = ?4 where appId=?1 and clusterName=?2 "
       + "and namespaceName = ?3 and isDeleted = false")
   int batchDelete(String appId, String clusterName, String namespaceName, String operator);
+
+  @Modifying
+  @Query(value = "DELETE FROM `Release` WHERE `Id` IN (:ids) "
+      + "AND NOT EXISTS (SELECT 1 FROM `ReleaseHistory` h "
+      + "WHERE h.`ReleaseId` = `Release`.`Id`) "
+      + "AND NOT EXISTS (SELECT 1 FROM `ReleaseHistory` h "
+      + "WHERE h.`PreviousReleaseId` = `Release`.`Id`) "
+      + "AND NOT EXISTS (SELECT 1 FROM `GrayReleaseRule` g "
+      + "WHERE g.`IsDeleted` = false AND g.`BranchStatus` = 1 "
+      + "AND g.`ReleaseId` = `Release`.`Id`)", nativeQuery = true)
+  int deletePhysicallyIfUnreferencedByIdIn(@Param("ids") Collection<Long> ids);
 
   // For release history conversion program, need to delete after conversion it done
   List<Release> findByAppIdAndClusterNameAndNamespaceNameOrderByIdAsc(String appId,
