@@ -189,7 +189,7 @@
 
   <!-- AdminService -> ConfigService (release notification) -->
   <path d="M460 498 L 570 498" fill="none" stroke="#e65100" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-orange)"/>
-  <text x="515" y="440" text-anchor="middle" font-size="11" fill="#e65100" font-weight="600">发布通知</text>
+  <text x="515" y="485" text-anchor="middle" font-size="11" fill="#e65100" font-weight="600">发布通知</text>
 
   <!-- Apollo Client -> Meta Server (service discovery) -->
   <path d="M850 318 L 920 318" fill="none" stroke="#f9a825" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
