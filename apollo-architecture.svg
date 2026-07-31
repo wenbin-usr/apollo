@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 880" font-family="'Segoe UI', 'Microsoft YaHei', 'PingFang SC', Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Light background gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f6f9fc"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+
+    <!-- Arrow markers -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7c"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1976d2"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2e7d32"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6a1b9a"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e65100"/>
+    </marker>
+
+    <!-- Subtle drop shadow for cards -->
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.5"/>
+      <feOffset dx="0" dy="2" result="off"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.18"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1240" height="880" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="620" y="42" text-anchor="middle" font-size="26" font-weight="700" fill="#263238">Apollo 核心组件架构图</text>
+  <text x="620" y="66" text-anchor="middle" font-size="13" fill="#607d8b">Apollo Core Architecture · 配置中心 · 服务发现 · 实时推送</text>
+  <line x1="470" y1="78" x2="770" y2="78" stroke="#cfd8dc" stroke-width="1.5"/>
+
+  <!-- ============ Layer labels (left rail) ============ -->
+  <g font-size="12" fill="#90a4ae" font-weight="600">
+    <text x="40" y="135">用户层</text>
+    <text x="40" y="145" font-size="9" fill="#b0bec5">User</text>
+
+    <text x="40" y="295">接入层</text>
+    <text x="40" y="305" font-size="9" fill="#b0bec5">Access</text>
+
+    <text x="40" y="475">服务层</text>
+    <text x="40" y="485" font-size="9" fill="#b0bec5">Service</text>
+
+    <text x="40" y="665">存储层</text>
+    <text x="40" y="675" font-size="9" fill="#b0bec5">Storage</text>
+  </g>
+  <line x1="92" y1="100" x2="92" y2="820" stroke="#dfe7ee" stroke-width="1" stroke-dasharray="2 4"/>
+
+  <!-- ============ User layer ============ -->
+  <!-- Developer / User -->
+  <g filter="url(#cardShadow)">
+    <rect x="235" y="108" width="170" height="58" rx="29" fill="#ffffff" stroke="#b0bec5" stroke-width="1.5"/>
+    <circle cx="270" cy="137" r="11" fill="none" stroke="#607d8b" stroke-width="1.8"/>
+    <path d="M255 162 q16 -16 32 0" fill="none" stroke="#607d8b" stroke-width="1.8"/>
+    <text x="295" y="134" font-size="14" font-weight="600" fill="#37474f">开发者 / 运维</text>
+    <text x="295" y="152" font-size="11" fill="#78909c">通过 Portal 管理配置</text>
+  </g>
+  <!-- Application end user -->
+  <g filter="url(#cardShadow)">
+    <rect x="570" y="108" width="180" height="58" rx="29" fill="#ffffff" stroke="#b0bec5" stroke-width="1.5"/>
+    <text x="660" y="134" text-anchor="middle" font-size="14" font-weight="600" fill="#37474f">业务应用</text>
+    <text x="660" y="152" text-anchor="middle" font-size="11" fill="#78909c">使用 Apollo 配置运行</text>
+  </g>
+
+  <!-- ============ Access layer ============ -->
+  <!-- Portal -->
+  <g filter="url(#cardShadow)">
+    <rect x="180" y="268" width="280" height="100" rx="10" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.8"/>
+    <text x="320" y="297" text-anchor="middle" font-size="16" font-weight="700" fill="#0d47a1">Apollo Portal</text>
+    <text x="320" y="316" text-anchor="middle" font-size="11" fill="#1565c0">配置管理 Web 控制台</text>
+    <line x1="210" y1="328" x2="430" y2="328" stroke="#bbdefb" stroke-width="1"/>
+    <text x="320" y="346" text-anchor="middle" font-size="11" fill="#37474f">· 多环境/多集群配置管理</text>
+    <text x="320" y="361" text-anchor="middle" font-size="11" fill="#37474f">· 权限 / 审批 / 审计 / 发布</text>
+  </g>
+
+  <!-- Apollo Client -->
+  <g filter="url(#cardShadow)">
+    <rect x="520" y="268" width="280" height="100" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.8"/>
+    <text x="660" y="297" text-anchor="middle" font-size="16" font-weight="700" fill="#1b5e20">Apollo Client (SDK)</text>
+    <text x="660" y="316" text-anchor="middle" font-size="11" fill="#2e7d32">嵌入业务应用的配置客户端</text>
+    <line x1="550" y1="328" x2="770" y2="328" stroke="#c8e6c9" stroke-width="1"/>
+    <text x="660" y="346" text-anchor="middle" font-size="11" fill="#37474f">· 实时获取 / 本地缓存 / 故障降级</text>
+    <text x="660" y="361" text-anchor="middle" font-size="11" fill="#37474f">· 与 Spring / Spring Boot 集成</text>
+  </g>
+
+  <!-- Meta Server (abstract discovery entry) -->
+  <g filter="url(#cardShadow)">
+    <rect x="920" y="268" width="200" height="100" rx="10" fill="#fffde7" stroke="#f9a825" stroke-width="1.8" stroke-dasharray="5 3"/>
+    <text x="1020" y="297" text-anchor="middle" font-size="15" font-weight="700" fill="#e65100">Meta Server</text>
+    <text x="1020" y="316" text-anchor="middle" font-size="11" fill="#ef6c00">服务发现抽象层</text>
+    <line x1="945" y1="328" x2="1095" y2="328" stroke="#ffe082" stroke-width="1"/>
+    <text x="1020" y="346" text-anchor="middle" font-size="10.5" fill="#5d4037">默认集成 Eureka</text>
+    <text x="1020" y="361" text-anchor="middle" font-size="10.5" fill="#5d4037">可替换 Nacos / Consul / ZK</text>
+  </g>
+
+  <!-- ============ Service layer ============ -->
+  <!-- AdminService -->
+  <g filter="url(#cardShadow)">
+    <rect x="180" y="448" width="280" height="100" rx="10" fill="#fff3e0" stroke="#e65100" stroke-width="1.8"/>
+    <text x="320" y="477" text-anchor="middle" font-size="16" font-weight="700" fill="#bf360c">Apollo AdminService</text>
+    <text x="320" y="496" text-anchor="middle" font-size="11" fill="#d84315">配置写入 / 发布服务</text>
+    <line x1="210" y1="508" x2="430" y2="508" stroke="#ffe0b2" stroke-width="1"/>
+    <text x="320" y="526" text-anchor="middle" font-size="11" fill="#37474f">· 配置 CRUD · 发布 &amp; 回滚</text>
+    <text x="320" y="541" text-anchor="middle" font-size="11" fill="#37474f">· 接收 Portal 请求并落库</text>
+  </g>
+
+  <!-- ConfigService -->
+  <g filter="url(#cardShadow)">
+    <rect x="520" y="448" width="280" height="100" rx="10" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="1.8"/>
+    <text x="660" y="477" text-anchor="middle" font-size="16" font-weight="700" fill="#4a148c">Apollo ConfigService</text>
+    <text x="660" y="496" text-anchor="middle" font-size="11" fill="#6a1b9a">配置读取 &amp; 实时推送服务</text>
+    <line x1="550" y1="508" x2="770" y2="508" stroke="#e1bee7" stroke-width="1"/>
+    <text x="660" y="526" text-anchor="middle" font-size="11" fill="#37474f">· 客户端配置获取 · 长轮询推送</text>
+    <text x="660" y="541" text-anchor="middle" font-size="11" fill="#37474f">· 内嵌 Eureka 注册中心</text>
+  </g>
+
+  <!-- Eureka badge inside ConfigService -->
+  <g>
+    <rect x="532" y="558" width="118" height="26" rx="13" fill="#fff8e1" stroke="#f9a825" stroke-width="1.3"/>
+    <circle cx="546" cy="571" r="4" fill="#f9a825"/>
+    <text x="591" y="575" text-anchor="middle" font-size="11" font-weight="600" fill="#e65100">Eureka Server</text>
+  </g>
+
+  <!-- Release notification badge inside AdminService -->
+  <g>
+    <rect x="332" y="558" width="128" height="26" rx="13" fill="#fbe9e7" stroke="#ff7043" stroke-width="1.3"/>
+    <text x="396" y="575" text-anchor="middle" font-size="11" font-weight="600" fill="#bf360c">Release 通知机制</text>
+  </g>
+
+  <!-- ============ Storage layer ============ -->
+  <!-- PortalDB -->
+  <g filter="url(#cardShadow)">
+    <rect x="180" y="638" width="280" height="92" rx="10" fill="#eceff1" stroke="#455a64" stroke-width="1.8"/>
+    <!-- DB icon -->
+    <g transform="translate(206,658)">
+      <path d="M0 6 a18 6 0 0 0 36 0 v22 a18 6 0 0 1 -36 0 z" fill="#cfd8dc" stroke="#455a64" stroke-width="1.4"/>
+      <path d="M0 6 a18 6 0 0 1 36 0" fill="none" stroke="#455a64" stroke-width="1.4"/>
+      <path d="M0 17 a18 6 0 0 1 36 0" fill="none" stroke="#455a64" stroke-width="1.4"/>
+    </g>
+    <text x="332" y="670" text-anchor="middle" font-size="16" font-weight="700" fill="#263238">PortalDB</text>
+    <text x="332" y="689" text-anchor="middle" font-size="11" fill="#546e7a">Portal 元数据存储</text>
+    <text x="332" y="710" text-anchor="middle" font-size="11" fill="#546e7a">用户 · 权限 · 审计 · 环境</text>
+  </g>
+
+  <!-- ConfigDB -->
+  <g filter="url(#cardShadow)">
+    <rect x="520" y="638" width="280" height="92" rx="10" fill="#eceff1" stroke="#455a64" stroke-width="1.8"/>
+    <g transform="translate(546,658)">
+      <path d="M0 6 a18 6 0 0 0 36 0 v22 a18 6 0 0 1 -36 0 z" fill="#cfd8dc" stroke="#455a64" stroke-width="1.4"/>
+      <path d="M0 6 a18 6 0 0 1 36 0" fill="none" stroke="#455a64" stroke-width="1.4"/>
+      <path d="M0 17 a18 6 0 0 1 36 0" fill="none" stroke="#455a64" stroke-width="1.4"/>
+    </g>
+    <text x="660" y="670" text-anchor="middle" font-size="16" font-weight="700" fill="#263238">ConfigDB</text>
+    <text x="660" y="689" text-anchor="middle" font-size="11" fill="#546e7a">核心配置数据存储</text>
+    <text x="660" y="710" text-anchor="middle" font-size="11" fill="#546e7a">App · Namespace · Cluster · Release</text>
+  </g>
+
+  <!-- ============ Arrows ============ -->
+  <!-- User -> Portal -->
+  <path d="M320 166 L 320 266" fill="none" stroke="#1976d2" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <text x="230" y="220" font-size="11" fill="#1976d2" font-weight="600">HTTP 管理配置</text>
+
+  <!-- App -> Apollo Client -->
+  <path d="M660 166 L 660 266" fill="none" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="670" y="220" font-size="11" fill="#2e7d32" font-weight="600">读取配置</text>
+
+  <!-- Portal -> AdminService -->
+  <path d="M320 368 L 320 446" fill="none" stroke="#e65100" stroke-width="2" marker-end="url(#arrow-orange)"/>
+  <text x="330" y="412" font-size="11" fill="#e65100" font-weight="600">写入/发布</text>
+
+  <!-- Portal -> PortalDB -->
+  <path d="M250 368 C 230 470, 230 580, 250 636" fill="none" stroke="#5b6b7c" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="170" y="510" font-size="11" fill="#5b6b7c" font-weight="600">读写元数据</text>
+
+  <!-- AdminService -> ConfigDB -->
+  <path d="M460 548 C 520 560, 560 610, 620 638" fill="none" stroke="#5b6b7c" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="490" y="610" font-size="11" fill="#5b6b7c" font-weight="600">配置落库 / 读取</text>
+
+  <!-- AdminService -> ConfigService (release notification) -->
+  <path d="M460 498 L 520 498" fill="none" stroke="#e65100" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-orange)"/>
+  <text x="490" y="440" text-anchor="middle" font-size="11" fill="#e65100" font-weight="600">发布通知</text>
+
+  <!-- Apollo Client -> Meta Server (service discovery) -->
+  <path d="M800 318 L 920 318" fill="none" stroke="#f9a825" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <text x="860" y="308" text-anchor="middle" font-size="10.5" fill="#ef6c00" font-weight="600">服务发现</text>
+
+  <!-- Meta Server -> Eureka (inside ConfigService) -->
+  <path d="M1020 368 C 1020 460, 800 571, 650 571" fill="none" stroke="#f9a825" stroke-width="1.8" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+  <text x="820" y="445" font-size="10.5" fill="#ef6c00" font-weight="600">查询服务列表</text>
+
+  <!-- Apollo Client -> ConfigService (long polling) -->
+  <path d="M660 368 L 660 446" fill="none" stroke="#6a1b9a" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <text x="670" y="408" font-size="11" fill="#6a1b9a" font-weight="600">长轮询 / 获取配置</text>
+
+  <!-- ConfigService -> ConfigDB -->
+  <path d="M660 548 L 660 636" fill="none" stroke="#5b6b7c" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="670" y="595" font-size="11" fill="#5b6b7c" font-weight="600">读取配置</text>
+
+  <!-- ConfigService push to client (return path label) -->
+  <text x="560" y="425" font-size="10.5" fill="#6a1b9a" font-style="italic">↑ 实时推送更新</text>
+
+  <!-- ============ Legend ============ -->
+  <g transform="translate(110, 770)">
+    <rect x="0" y="0" width="1020" height="80" rx="10" fill="#ffffff" stroke="#dfe7ee" stroke-width="1.2"/>
+    <text x="20" y="22" font-size="12" font-weight="700" fill="#37474f">图例 Legend</text>
+
+    <!-- solid arrow -->
+    <line x1="20" y1="48" x2="60" y2="48" stroke="#5b6b7c" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="68" y="52" font-size="11" fill="#455a64">同步调用 / 数据读写</text>
+
+    <!-- dashed orange -->
+    <line x1="210" y1="48" x2="250" y2="48" stroke="#e65100" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-orange)"/>
+    <text x="258" y="52" font-size="11" fill="#455a64">异步通知 (Release)</text>
+
+    <!-- dashed yellow -->
+    <line x1="400" y1="48" x2="440" y2="48" stroke="#f9a825" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+    <text x="448" y="52" font-size="11" fill="#455a64">服务发现 / 注册</text>
+
+    <!-- purple long polling -->
+    <line x1="580" y1="48" x2="620" y2="48" stroke="#6a1b9a" stroke-width="2" marker-end="url(#arrow-purple)"/>
+    <text x="628" y="52" font-size="11" fill="#455a64">HTTP 长轮询</text>
+
+    <!-- color chips -->
+    <rect x="20" y="62" width="14" height="10" rx="2" fill="#e3f2fd" stroke="#1976d2"/>
+    <text x="40" y="71" font-size="10.5" fill="#455a64">Portal</text>
+
+    <rect x="120" y="62" width="14" height="10" rx="2" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="140" y="71" font-size="10.5" fill="#455a64">Client</text>
+
+    <rect x="210" y="62" width="14" height="10" rx="2" fill="#fff3e0" stroke="#e65100"/>
+    <text x="230" y="71" font-size="10.5" fill="#455a64">AdminService</text>
+
+    <rect x="330" y="62" width="14" height="10" rx="2" fill="#f3e5f5" stroke="#6a1b9a"/>
+    <text x="350" y="71" font-size="10.5" fill="#455a64">ConfigService</text>
+
+    <rect x="460" y="62" width="14" height="10" rx="2" fill="#fffde7" stroke="#f9a825"/>
+    <text x="480" y="71" font-size="10.5" fill="#455a64">Meta Server</text>
+
+    <rect x="570" y="62" width="14" height="10" rx="2" fill="#eceff1" stroke="#455a64"/>
+    <text x="590" y="71" font-size="10.5" fill="#455a64">数据库 (MySQL)</text>
+
+    <text x="700" y="71" font-size="10.5" fill="#90a4ae">基于 apollo 源码模块结构整理</text>
+  </g>
+
+  <!-- footer note -->
+  <text x="620" y="868" text-anchor="middle" font-size="10" fill="#b0bec5">apollo-configservice · apollo-adminservice · apollo-portal · apollo-client · apollo-biz · apollo-common</text>
+</svg>
