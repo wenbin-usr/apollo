@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="3136" viewBox="0 0 1240 3136" font-family="ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1240" height="3136" fill="#f5f7fa"/>
+
+  <text x="620" y="44" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">Apollo Java 客户端 · 获取配置流程</text>
+  <text x="620" y="70" text-anchor="middle" font-size="13" fill="#64748b">基于 apollo-java 源码：ConfigService.getConfig -&gt; 仓库链 -&gt; 远程拉取/本地缓存 -&gt; getProperty 优先级 -&gt; 实时更新</text>
+
+  <!-- ============ Phase bands ============ -->
+  <rect x="30" y="90"   width="1180" height="312"  rx="12" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <rect x="34" y="98"   width="5"    height="296"  rx="2.5" fill="#6366f1"/>
+  <text x="52" y="116"  font-size="16" font-weight="700" fill="#4338ca">① 获取 Config 实例（入口与缓存）</text>
+
+  <rect x="30" y="418"  width="1180" height="328"  rx="12" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+  <rect x="34" y="426"  width="5"    height="312"  rx="2.5" fill="#3b82f6"/>
+  <text x="52" y="444"  font-size="16" font-weight="700" fill="#1d4ed8">② 首次初始化（懒加载构建仓库链）</text>
+
+  <rect x="30" y="762"  width="1180" height="1032" rx="12" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <rect x="34" y="770"  width="5"    height="1016" rx="2.5" fill="#f59e0b"/>
+  <text x="52" y="788"  font-size="16" font-weight="700" fill="#b45309">③ 配置拉取（仓库同步 + 远程 + 本地回退）</text>
+
+  <rect x="30" y="1810" width="1180" height="498"  rx="12" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+  <rect x="34" y="1818" width="5"    height="482"  rx="2.5" fill="#22c55e"/>
+  <text x="52" y="1836" font-size="16" font-weight="700" fill="#15803d">④ 读取配置值（getProperty 优先级）</text>
+
+  <rect x="30" y="2324" width="1180" height="696"  rx="12" fill="#fff1f2" stroke="#fecdd3" stroke-width="1.5"/>
+  <rect x="34" y="2332" width="5"    height="680"  rx="2.5" fill="#f43f5e"/>
+  <text x="52" y="2350" font-size="16" font-weight="700" fill="#be123c">⑤ 实时更新（变更感知与通知）</text>
+
+  <!-- ============ Arrows ============ -->
+  <g stroke="#94a3b8" stroke-width="2" fill="none">
+    <!-- main spine -->
+    <line x1="600" y1="184"  x2="600" y2="212"  marker-end="url(#arrow)"/>
+    <line x1="600" y1="278"  x2="600" y2="306"  marker-end="url(#arrow)"/>
+    <line x1="600" y1="378"  x2="600" y2="468"  marker-end="url(#arrow)"/>
+    <line x1="600" y1="572"  x2="600" y2="600"  marker-end="url(#arrow)"/>
+    <line x1="600" y1="722"  x2="600" y2="812"  marker-end="url(#arrow)"/>
+    <line x1="600" y1="878"  x2="600" y2="906"  marker-end="url(#arrow)"/>
+    <line x1="600" y1="1004" x2="600" y2="1032" marker-end="url(#arrow)"/>
+    <line x1="600" y1="1130" x2="600" y2="1158" marker-end="url(#arrow)"/>
+    <line x1="600" y1="1446" x2="600" y2="1474" marker-end="url(#arrow)"/>
+    <line x1="600" y1="1770" x2="600" y2="1860" marker-end="url(#arrow)"/>
+    <line x1="600" y1="2000" x2="600" y2="2028" marker-end="url(#arrow)"/>
+    <line x1="600" y1="2456" x2="600" y2="2484" marker-end="url(#arrow)"/>
+    <line x1="600" y1="2550" x2="600" y2="2578" marker-end="url(#arrow)"/>
+    <line x1="600" y1="2650" x2="600" y2="2678" marker-end="url(#arrow)"/>
+    <line x1="600" y1="2776" x2="600" y2="2804" marker-end="url(#arrow)"/>
+    <line x1="600" y1="2902" x2="600" y2="2930" marker-end="url(#arrow)"/>
+    <line x1="600" y1="1368" x2="600" y2="1396" marker-end="url(#arrow)"/>
+    <line x1="600" y1="1684" x2="600" y2="1712" marker-end="url(#arrow)"/>
+    <line x1="600" y1="2206" x2="600" y2="2234" marker-end="url(#arrow)"/>
+
+    <!-- D1 是 -> N_ret -->
+    <line x1="750" y1="342"  x2="950" y2="342"  marker-end="url(#arrow)"/>
+    <!-- elbow branches -->
+    <path d="M450,1194 L420,1194 L420,1258" marker-end="url(#arrow)"/>
+    <path d="M750,1194 L780,1194 L780,1258" marker-end="url(#arrow)"/>
+    <path d="M450,1510 L420,1510 L420,1574" marker-end="url(#arrow)"/>
+    <path d="M750,1510 L780,1510 L780,1574" marker-end="url(#arrow)"/>
+    <path d="M450,2064 L420,2064 L420,2128" marker-end="url(#arrow)"/>
+    <path d="M750,2064 L780,2064 L780,2128" marker-end="url(#arrow)"/>
+    <line x1="750" y1="2614" x2="830" y2="2614" marker-end="url(#arrow)"/>
+
+    <!-- merges (no arrowhead on converging, arrowhead on final vertical) -->
+    <path d="M420,1340 L420,1368 L600,1368"/>
+    <path d="M780,1340 L780,1368 L600,1368"/>
+    <path d="M420,1656 L420,1684 L600,1684"/>
+    <path d="M780,1656 L780,1684 L600,1684"/>
+    <path d="M420,2178 L420,2206 L600,2206"/>
+    <path d="M780,2178 L780,2206 L600,2206"/>
+  </g>
+
+  <!-- dashed arrows -->
+  <g stroke="#94a3b8" stroke-width="2" fill="none" stroke-dasharray="6 4">
+    <path d="M1070,375 L1070,1930 L930,1930" marker-end="url(#arrow)"/>
+    <line x1="600" y1="2284" x2="600" y2="2374" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- arrow labels -->
+  <g font-size="12" font-weight="700">
+    <text x="850" y="336"  fill="#16a34a">是</text>
+    <text x="610" y="400"  fill="#dc2626">否</text>
+    <text x="435" y="1186" fill="#16a34a">是</text>
+    <text x="765" y="1186" fill="#dc2626">否</text>
+    <text x="435" y="1502" fill="#16a34a">是</text>
+    <text x="765" y="1502" fill="#dc2626">否</text>
+    <text x="435" y="2056" fill="#16a34a">是</text>
+    <text x="765" y="2056" fill="#dc2626">否</text>
+    <text x="610" y="2666" fill="#16a34a">是</text>
+    <text x="790" y="2606" fill="#dc2626">否</text>
+    <text x="612" y="758"  fill="#64748b" font-weight="600">调用 repository.initialize() 同步</text>
+    <text x="612" y="1807" fill="#64748b" font-weight="600">Config 就绪，读取配置值</text>
+    <text x="612" y="2320" fill="#64748b" font-weight="600">后台并行：实时更新</text>
+  </g>
+  <!-- D1 shortcut note -->
+  <rect x="1010" y="1080" width="130" height="44" rx="8" fill="#ffffff" stroke="#fca5a5"/>
+  <text x="1075" y="1098" text-anchor="middle" font-size="11.5" fill="#be123c">缓存命中</text>
+  <text x="1075" y="1116" text-anchor="middle" font-size="11.5" fill="#be123c">直接读取</text>
+
+  <!-- ============ Nodes ============ -->
+  <!-- N1 start pill -->
+  <rect x="410" y="140" width="380" height="44" rx="22" fill="#4f46e5" filter="url(#shadow)"/>
+  <text x="600" y="167" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">调用 ConfigService.getConfig(appId, namespace)</text>
+
+  <!-- N2 -->
+  <rect x="270" y="212" width="660" height="66" rx="10" fill="#ffffff" stroke="#6366f1" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="236" text-anchor="middle" font-size="14" font-weight="700" fill="#3730a3">DefaultConfigManager.getConfig()</text>
+  <text x="600" y="256" text-anchor="middle" font-size="13" fill="#334155">缓存查询 Table&lt;appId, namespace, Config&gt;</text>
+
+  <!-- D1 -->
+  <polygon points="600,306 750,342 600,378 450,342" fill="#fefce8" stroke="#eab308" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="347" text-anchor="middle" font-size="13" font-weight="700" fill="#854d0e">缓存命中 Config 实例?</text>
+
+  <!-- N_ret side -->
+  <rect x="950" y="309" width="240" height="66" rx="10" fill="#ffffff" stroke="#6366f1" stroke-width="2" filter="url(#shadow)"/>
+  <text x="1070" y="333" text-anchor="middle" font-size="13" font-weight="700" fill="#3730a3">返回已缓存的 Config 实例</text>
+  <text x="1070" y="351" text-anchor="middle" font-size="12" fill="#64748b">（m_configProperties 已就绪）</text>
+
+  <!-- N3 -->
+  <rect x="270" y="468" width="660" height="104" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="493" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">DefaultConfigFactory.create(appId, namespace)</text>
+  <text x="600" y="513" text-anchor="middle" font-size="13" fill="#334155">构建仓库链 createConfigRepository()</text>
+  <text x="600" y="531" text-anchor="middle" font-size="13" fill="#334155">new LocalFileConfigRepository(appId, ns, RemoteConfigRepository)</text>
+  <text x="600" y="549" text-anchor="middle" font-size="12" fill="#64748b">← 本地仓库包裹远程仓库（upstream）</text>
+
+  <!-- N4 -->
+  <rect x="270" y="600" width="660" height="122" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="624" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">new DefaultConfig(appId, ns, repository) 初始化</text>
+  <text x="600" y="644" text-anchor="middle" font-size="13" fill="#334155">loadFromResource() 加载 classpath 兜底 properties</text>
+  <text x="600" y="662" text-anchor="middle" font-size="13" fill="#334155">repository.initialize()(=sync) 同步远程/本地</text>
+  <text x="600" y="680" text-anchor="middle" font-size="13" fill="#334155">updateConfig(repository.getConfig()) 缓存 m_configProperties</text>
+  <text x="600" y="698" text-anchor="middle" font-size="13" fill="#334155">注册为 RepositoryChangeListener</text>
+  <text x="600" y="716" text-anchor="middle" font-size="12" fill="#64748b">缓存 Config 实例到 m_configs</text>
+
+  <!-- N5 -->
+  <rect x="270" y="812" width="660" height="66" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="836" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">LocalFileConfigRepository.sync()</text>
+  <text x="600" y="856" text-anchor="middle" font-size="13" fill="#334155">trySyncFromUpstream() -&gt; RemoteConfigRepository.getConfig()</text>
+
+  <!-- N6 -->
+  <rect x="270" y="906" width="660" height="98" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="930" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">RemoteConfigRepository.getConfig()</text>
+  <text x="600" y="950" text-anchor="middle" font-size="13" fill="#334155">m_configCache 为空? -&gt; sync() -&gt; loadApolloConfig()</text>
+  <text x="600" y="968" text-anchor="middle" font-size="13" fill="#334155">限流 m_loadConfigRateLimiter</text>
+  <text x="600" y="986" text-anchor="middle" font-size="13" fill="#334155">getConfigServices() 发现 ConfigService 地址</text>
+
+  <!-- N7 -->
+  <rect x="270" y="1032" width="660" height="98" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1056" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">远程拉取 loadApolloConfig()</text>
+  <text x="600" y="1076" text-anchor="middle" font-size="13" fill="#334155">重试循环：shuffle 服务，优先长轮询通知的服务</text>
+  <text x="600" y="1094" text-anchor="middle" font-size="13" fill="#334155">GET /configs/{appId}/{cluster}/{namespace}?releaseKey=&amp;ip=&amp;messages=</text>
+  <text x="600" y="1112" text-anchor="middle" font-size="13" fill="#334155">带 AccessKey 签名 headers -&gt; HTTP 请求</text>
+
+  <!-- D3 -->
+  <polygon points="600,1158 750,1194 600,1230 450,1194" fill="#fefce8" stroke="#eab308" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1199" text-anchor="middle" font-size="13" font-weight="700" fill="#854d0e">HTTP 成功 (200/304)?</text>
+
+  <!-- N8a -->
+  <rect x="250" y="1258" width="340" height="82" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="420" y="1281" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">成功</text>
+  <text x="420" y="1301" text-anchor="middle" font-size="13" fill="#334155">200: 返回新 ApolloConfig</text>
+  <text x="420" y="1319" text-anchor="middle" font-size="12" fill="#64748b">304: 未变更，返回缓存（不触发变更）</text>
+
+  <!-- N8b -->
+  <rect x="610" y="1258" width="340" height="82" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="780" y="1281" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">失败 / 404</text>
+  <text x="780" y="1301" text-anchor="middle" font-size="13" fill="#334155">记录异常，指数退避重试</text>
+  <text x="780" y="1319" text-anchor="middle" font-size="12" fill="#64748b">最终失败抛 ApolloConfigException</text>
+
+  <!-- N9 -->
+  <rect x="270" y="1396" width="660" height="50" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1416" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">RemoteConfigRepository 返回</text>
+  <text x="600" y="1435" text-anchor="middle" font-size="13" fill="#334155">Properties 交给 LocalFileConfigRepository</text>
+
+  <!-- D2 -->
+  <polygon points="600,1474 750,1510 600,1546 450,1510" fill="#fefce8" stroke="#eab308" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1515" text-anchor="middle" font-size="13" font-weight="700" fill="#854d0e">上游（远程）同步成功?</text>
+
+  <!-- N10a -->
+  <rect x="250" y="1574" width="340" height="82" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="420" y="1597" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">成功</text>
+  <text x="420" y="1617" text-anchor="middle" font-size="13" fill="#334155">updateFileProperties() 设置 m_fileProperties</text>
+  <text x="420" y="1635" text-anchor="middle" font-size="12" fill="#64748b">persistLocalCacheFile() 写本地缓存文件</text>
+
+  <!-- N10b -->
+  <rect x="610" y="1574" width="340" height="82" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="780" y="1597" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">失败（回退本地）</text>
+  <text x="780" y="1617" text-anchor="middle" font-size="13" fill="#334155">loadFromLocalCacheFile()</text>
+  <text x="780" y="1635" text-anchor="middle" font-size="12" fill="#64748b">读 /config-cache/{appId}+{cluster}+{ns}.properties</text>
+
+  <!-- N11 -->
+  <rect x="270" y="1712" width="660" height="58" rx="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1735" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">DefaultConfig.updateConfig()</text>
+  <text x="600" y="1754" text-anchor="middle" font-size="13" fill="#334155">缓存到 m_configProperties + m_sourceType</text>
+
+  <!-- N12 -->
+  <rect x="270" y="1860" width="660" height="140" rx="10" fill="#ffffff" stroke="#22c55e" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1884" text-anchor="middle" font-size="14" font-weight="700" fill="#15803d">config.getProperty(key, defaultValue)</text>
+  <text x="600" y="1904" text-anchor="middle" font-size="13" fill="#334155">按优先级依次查找:</text>
+  <text x="600" y="1924" text-anchor="middle" font-size="13" fill="#334155">1. System.getProperty(key)   -D 启动参数</text>
+  <text x="600" y="1942" text-anchor="middle" font-size="13" fill="#334155">2. getPropertyFromRepository(key)   Apollo 缓存</text>
+  <text x="600" y="1960" text-anchor="middle" font-size="13" fill="#334155">3. System.getenv(key)   环境变量</text>
+  <text x="600" y="1978" text-anchor="middle" font-size="13" fill="#334155">4. getPropertyFromAdditional(key)   classpath 兜底</text>
+  <text x="600" y="1996" text-anchor="middle" font-size="13" fill="#334155">5. 命中返回，否则返回 defaultValue</text>
+
+  <!-- D4 -->
+  <polygon points="600,2028 750,2064 600,2100 450,2064" fill="#fefce8" stroke="#eab308" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="2069" text-anchor="middle" font-size="13" font-weight="700" fill="#854d0e">找到值?</text>
+
+  <!-- N14a -->
+  <rect x="250" y="2128" width="340" height="50" rx="25" fill="#22c55e" filter="url(#shadow)"/>
+  <text x="420" y="2158" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">返回配置值</text>
+
+  <!-- N14b -->
+  <rect x="610" y="2128" width="340" height="50" rx="25" fill="#64748b" filter="url(#shadow)"/>
+  <text x="780" y="2158" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">返回 defaultValue</text>
+
+  <!-- N15 -->
+  <rect x="270" y="2234" width="660" height="50" rx="10" fill="#ffffff" stroke="#22c55e" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="2264" text-anchor="middle" font-size="14" font-weight="700" fill="#15803d">返回值给调用方</text>
+
+  <!-- N16 -->
+  <rect x="270" y="2374" width="660" height="82" rx="10" fill="#ffffff" stroke="#f43f5e" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="2398" text-anchor="middle" font-size="14" font-weight="700" fill="#be123c">RemoteConfigRepository 后台任务</text>
+  <text x="600" y="2418" text-anchor="middle" font-size="13" fill="#334155">schedulePeriodicRefresh() 定时(默认5min) trySync()</text>
+  <text x="600" y="2436" text-anchor="middle" font-size="13" fill="#334155">scheduleLongPollingRefresh() -&gt; 长轮询</text>
+
+  <!-- N17 -->
+  <rect x="270" y="2484" width="660" height="66" rx="10" fill="#ffffff" stroke="#f43f5e" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="2508" text-anchor="middle" font-size="14" font-weight="700" fill="#be123c">长轮询感知变更 -&gt; onLongPollNotified()</text>
+  <text x="600" y="2528" text-anchor="middle" font-size="13" fill="#334155">m_configNeedForceRefresh=true + trySync()</text>
+
+  <!-- D5 -->
+  <polygon points="600,2578 750,2614 600,2650 450,2614" fill="#fefce8" stroke="#eab308" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="2619" text-anchor="middle" font-size="13" font-weight="700" fill="#854d0e">sync 成功且配置变更(非304)?</text>
+
+  <!-- D5 否 node -->
+  <rect x="830" y="2581" width="260" height="66" rx="10" fill="#ffffff" stroke="#f43f5e" stroke-width="2" stroke-dasharray="4 3" filter="url(#shadow)"/>
+  <text x="960" y="2605" text-anchor="middle" font-size="13" font-weight="700" fill="#be123c">无变化</text>
+  <text x="960" y="2623" text-anchor="middle" font-size="12" fill="#64748b">继续后台监听</text>
+
+  <!-- N18 -->
+  <rect x="270" y="2678" width="660" height="98" rx="10" fill="#ffffff" stroke="#f43f5e" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="2702" text-anchor="middle" font-size="14" font-weight="700" fill="#be123c">fireRepositoryChange() 通知下游</text>
+  <text x="600" y="2722" text-anchor="middle" font-size="13" fill="#334155">通知链：RemoteConfigRepository</text>
+  <text x="600" y="2740" text-anchor="middle" font-size="13" fill="#334155">-&gt; LocalFileConfigRepository.onRepositoryChange (持久化本地)</text>
+  <text x="600" y="2758" text-anchor="middle" font-size="13" fill="#334155">-&gt; DefaultConfig.onRepositoryChange</text>
+
+  <!-- N19 -->
+  <rect x="270" y="2804" width="660" height="98" rx="10" fill="#ffffff" stroke="#f43f5e" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="2828" text-anchor="middle" font-size="14" font-weight="700" fill="#be123c">DefaultConfig.onRepositoryChange</text>
+  <text x="600" y="2848" text-anchor="middle" font-size="13" fill="#334155">updateAndCalcConfigChanges() 计算变更</text>
+  <text x="600" y="2866" text-anchor="middle" font-size="13" fill="#334155">+ updateConfig() 更新 m_configProperties</text>
+  <text x="600" y="2884" text-anchor="middle" font-size="13" fill="#334155">+ fireConfigChange()</text>
+
+  <!-- N20 -->
+  <rect x="270" y="2930" width="660" height="66" rx="10" fill="#ffffff" stroke="#f43f5e" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="2954" text-anchor="middle" font-size="14" font-weight="700" fill="#be123c">通知 ConfigChangeListener</text>
+  <text x="600" y="2974" text-anchor="middle" font-size="13" fill="#334155">interestedKeys 过滤 -&gt; 用户回调 onChange(ConfigChangeEvent)</text>
+
+  <!-- ============ Legend ============ -->
+  <rect x="30" y="3036" width="1180" height="80" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="52" y="3058" font-size="14" font-weight="700" fill="#0f172a">图例</text>
+  <g font-size="13" fill="#334155">
+    <rect x="52" y="3074" width="34" height="20" rx="10" fill="#4f46e5"/>
+    <text x="96" y="3089">开始</text>
+
+    <rect x="170" y="3074" width="34" height="20" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+    <text x="214" y="3089">处理节点</text>
+
+    <polygon points="320,3084 337,3075 354,3084 337,3093" fill="#fefce8" stroke="#eab308" stroke-width="2"/>
+    <text x="364" y="3089">判断节点</text>
+
+    <rect x="454" y="3074" width="34" height="20" rx="10" fill="#22c55e"/>
+    <text x="498" y="3089">返回值（成功）</text>
+
+    <rect x="610" y="3074" width="34" height="20" rx="10" fill="#64748b"/>
+    <text x="654" y="3089">返回默认值</text>
+
+    <line x1="766" y1="3084" x2="806" y2="3084" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="814" y="3089">主流程</text>
+
+    <line x1="884" y1="3084" x2="924" y2="3084" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+    <text x="932" y="3089">分支 / 缓存命中 / 后台</text>
+  </g>
+</svg>
