@@ -511,7 +511,7 @@ export JAVA_OPTS="-server -Xms6144m -Xmx6144m -Xss256k -XX:MetaspaceSize=128m -X
 
 > Note 1: If you need to modify the JVM parameters, you can modify the `JAVA_OPTS` section of scripts/startup.sh.
 
-> Note 2: To adjust the log output path of the service, you can modify `LOG_DIR` in scripts/startup.sh and apollo-configservice.conf.
+> Note 2: To adjust the log output path of the service, you can modify `LOG_DIR` in scripts/startup.sh.
 
 > Note 3: To adjust the listening port of the service, you can modify the `SERVER_PORT` in scripts/startup.sh. In addition, apollo-configservice also assumes the responsibility of meta server. If you want to modify the port, update the meta server information used by apollo-portal and apollo-client as well. For details, see [2.2.1.1.2.4 Configuring the meta service information of apollo-portal](en/deployment/distributed-deployment-guide?id=_221124-configuring-apollo-portal39s-meta-service-information) and [1.2.2 Apollo Meta Server](en/client/java-sdk-user-guide?id=_122-apollo-meta-server). If you still use the built-in Eureka, you also need to update the `eureka.service.url` configuration item in the ApolloConfigDB.ServerConfig table.
 
@@ -533,7 +533,7 @@ export JAVA_OPTS="-server -Xms2560m -Xmx2560m -Xss256k -XX:MetaspaceSize=128m -X
 
 > Note 1: If you need to modify the JVM parameters, you can modify the `JAVA_OPTS` section of scripts/startup.sh.
 
-> Note 2: To adjust the log output path of the service, you can modify `LOG_DIR` in scripts/startup.sh and apollo-adminservice.conf.
+> Note 2: To adjust the log output path of the service, you can modify `LOG_DIR` in scripts/startup.sh.
 
 > Note 3: To adjust the listening port of the service, you can modify the `SERVER_PORT` in scripts/startup.sh.
 
@@ -551,7 +551,7 @@ export JAVA_OPTS="-server -Xms4096m -Xmx4096m -Xss256k -XX:MetaspaceSize=128m -X
 
 > Note 1: If you need to modify the JVM parameters, you can modify the `JAVA_OPTS` section of scripts/startup.sh.
 
-> Note 2: To adjust the log output path of the service, you can modify `LOG_DIR` in scripts/startup.sh and apollo-portal.conf.
+> Note 2: To adjust the log output path of the service, you can modify `LOG_DIR` in scripts/startup.sh.
 
 > Note 3: To adjust the listening port of the service, you can modify the `SERVER_PORT` in scripts/startup.sh.
 
@@ -1393,7 +1393,15 @@ If you don't have access to your company's SSO system, you can use the default v
 
 ### 3.1.5 consumer.token.salt - consumer token salt
 
-You can set a token salt if you will use the open platform API, but ignore it if you don't.
+When using Open API consumer tokens, set `consumer.token.salt` to a random string unique to the installation. For example:
+
+```bash
+openssl rand -hex 32
+```
+
+Configure the generated value in `ApolloPortalDB.ServerConfig` or through `Administrator Tools - System Parameters`. Changes normally take effect in about one minute; wait for the refresh before generating tokens. You can ignore this setting if you do not use consumer tokens.
+
+Changing the salt does not affect existing tokens. To replace a token, a super administrator can delete and recreate its Consumer in Portal. Deletion invalidates the old token and removes the Consumer's role assignments, so record the required permissions beforehand, restore them after recreation, and update the calling applications with the new token.
 
 ### 3.1.6 wiki.address
 

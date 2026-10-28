@@ -29,6 +29,7 @@ import com.ctrip.framework.apollo.common.dto.ItemDTO;
 import com.ctrip.framework.apollo.common.dto.NamespaceDTO;
 import com.ctrip.framework.apollo.common.dto.PageDTO;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
+import com.ctrip.framework.apollo.common.exception.NotFoundException;
 import com.ctrip.framework.apollo.openapi.model.OpenItemDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenItemDiffDTO;
 import com.ctrip.framework.apollo.openapi.model.OpenItemPageDTO;
@@ -46,6 +47,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -198,8 +201,128 @@ class ServerItemOpenApiServiceTest {
   }
 
   @Test
+  void batchCreateItemsShouldStampNamespaceIdAndAuditFieldsForEachItem() {
+    NamespaceDTO namespace = new NamespaceDTO();
+    namespace.setId(88L);
+    when(namespaceService.loadNamespaceBaseInfo(APP_ID, Env.valueOf(ENV), CLUSTER, NAMESPACE))
+        .thenReturn(namespace);
+
+    List<OpenItemDTO> items = List.of(openItem("timeout", "100"), openItem("retries", "3"));
+
+    service.batchCreateItems(APP_ID, ENV, CLUSTER, NAMESPACE, items, "operator");
+
+    ArgumentCaptor<ItemChangeSets> captor = ArgumentCaptor.forClass(ItemChangeSets.class);
+    verify(itemService).updateItems(eq(APP_ID), eq(Env.valueOf(ENV)), eq(CLUSTER), eq(NAMESPACE),
+        captor.capture());
+    ItemChangeSets changeSets = captor.getValue();
+    assertThat(changeSets.getCreateItems()).extracting(ItemDTO::getKey).containsExactly("timeout",
+        "retries");
+    assertThat(changeSets.getCreateItems()).allSatisfy(item -> {
+      assertThat(item.getNamespaceId()).isEqualTo(88L);
+      assertThat(item.getId()).isEqualTo(0);
+      assertThat(item.getDataChangeCreatedBy()).isEqualTo("operator");
+      assertThat(item.getDataChangeLastModifiedBy()).isEqualTo("operator");
+    });
+    assertThat(changeSets.getUpdateItems()).isEmpty();
+    assertThat(changeSets.getDeleteItems()).isEmpty();
+  }
+
+  @Test
+  void batchUpdateItemsShouldLoadEachItemAndPreserveIdentityFields() {
+    ItemDTO existing = item("timeout", "100");
+    existing.setId(99);
+    existing.setNamespaceId(10);
+    when(itemService.loadItem(Env.valueOf(ENV), APP_ID, CLUSTER, NAMESPACE, "timeout"))
+        .thenReturn(existing);
+
+    OpenItemDTO request = openItem("timeout", "200");
+    request.setComment("new comment");
+
+    service.batchUpdateItems(APP_ID, ENV, CLUSTER, NAMESPACE, List.of(request), "operator");
+
+    ArgumentCaptor<ItemChangeSets> captor = ArgumentCaptor.forClass(ItemChangeSets.class);
+    verify(itemService).updateItems(eq(APP_ID), eq(Env.valueOf(ENV)), eq(CLUSTER), eq(NAMESPACE),
+        captor.capture());
+    ItemChangeSets changeSets = captor.getValue();
+    assertThat(changeSets.getUpdateItems()).hasSize(1);
+    ItemDTO delegated = changeSets.getUpdateItems().get(0);
+    assertThat(delegated.getId()).isEqualTo(99);
+    assertThat(delegated.getNamespaceId()).isEqualTo(10);
+    assertThat(delegated.getValue()).isEqualTo("200");
+    assertThat(delegated.getComment()).isEqualTo("new comment");
+    assertThat(delegated.getDataChangeLastModifiedBy()).isEqualTo("operator");
+  }
+
+  @Test
+  void batchUpdateItemsShouldPreserveExistingTypeWhenOmittedFromPayload() {
+    ItemDTO existing = item("timeout", "100");
+    existing.setType(5);
+    when(itemService.loadItem(Env.valueOf(ENV), APP_ID, CLUSTER, NAMESPACE, "timeout"))
+        .thenReturn(existing);
+
+    OpenItemDTO request = new OpenItemDTO();
+    request.setKey("timeout");
+    request.setValue("200");
+
+    service.batchUpdateItems(APP_ID, ENV, CLUSTER, NAMESPACE, List.of(request), "operator");
+
+    ArgumentCaptor<ItemChangeSets> captor = ArgumentCaptor.forClass(ItemChangeSets.class);
+    verify(itemService).updateItems(eq(APP_ID), eq(Env.valueOf(ENV)), eq(CLUSTER), eq(NAMESPACE),
+        captor.capture());
+    ItemDTO delegated = captor.getValue().getUpdateItems().get(0);
+    assertThat(delegated.getType()).isEqualTo(5);
+    assertThat(delegated.getValue()).isEqualTo("200");
+  }
+
+  @Test
+  void batchUpdateItemsShouldRejectUnknownKey() {
+    when(itemService.loadItem(Env.valueOf(ENV), APP_ID, CLUSTER, NAMESPACE, "missing"))
+        .thenReturn(null);
+
+    List<OpenItemDTO> items = List.of(openItem("missing", "100"));
+
+    assertThatThrownBy(
+        () -> service.batchUpdateItems(APP_ID, ENV, CLUSTER, NAMESPACE, items, "operator"))
+        .isInstanceOf(NotFoundException.class);
+    verify(itemService, never()).updateItems(any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void batchDeleteItemsShouldResolveEachKeyToItsInternalId() {
+    ItemDTO existing = item("timeout", "100");
+    existing.setId(99);
+    when(itemService.loadItem(Env.valueOf(ENV), APP_ID, CLUSTER, NAMESPACE, "timeout"))
+        .thenReturn(existing);
+
+    service.batchDeleteItems(APP_ID, ENV, CLUSTER, NAMESPACE, List.of("timeout"), "operator");
+
+    ArgumentCaptor<ItemChangeSets> captor = ArgumentCaptor.forClass(ItemChangeSets.class);
+    verify(itemService).updateItems(eq(APP_ID), eq(Env.valueOf(ENV)), eq(CLUSTER), eq(NAMESPACE),
+        captor.capture());
+    ItemChangeSets changeSets = captor.getValue();
+    assertThat(changeSets.getDeleteItems()).hasSize(1);
+    assertThat(changeSets.getDeleteItems().get(0).getId()).isEqualTo(99);
+    assertThat(changeSets.getDeleteItems().get(0).getDataChangeLastModifiedBy())
+        .isEqualTo("operator");
+  }
+
+  @Test
+  void batchDeleteItemsShouldRejectUnknownKey() {
+    when(itemService.loadItem(Env.valueOf(ENV), APP_ID, CLUSTER, NAMESPACE, "missing"))
+        .thenReturn(null);
+
+    List<String> keys = List.of("missing");
+
+    assertThatThrownBy(
+        () -> service.batchDeleteItems(APP_ID, ENV, CLUSTER, NAMESPACE, keys, "operator"))
+        .isInstanceOf(NotFoundException.class);
+    verify(itemService, never()).updateItems(any(), any(), any(), any(), any());
+  }
+
+  @Test
   void updateItemShouldLoadExistingItemAndPreserveIdentityFields() {
     ItemDTO existing = item("timeout", "100");
+    existing.setType(5);
     existing.setId(99);
     existing.setNamespaceId(10);
     existing.setLineNum(7);
@@ -219,8 +342,33 @@ class ServerItemOpenApiServiceTest {
     assertThat(delegated.getNamespaceId()).isEqualTo(10);
     assertThat(delegated.getLineNum()).isEqualTo(7);
     assertThat(delegated.getValue()).isEqualTo("200");
+    assertThat(delegated.getType()).isEqualTo(request.getType());
     assertThat(delegated.getComment()).isEqualTo("new comment");
     assertThat(delegated.getDataChangeLastModifiedBy()).isEqualTo("operator");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"false, 0", "false, 5", "true, 0", "true, 5"})
+  void updateShouldPreserveExistingTypeWhenPayloadOmitsIt(boolean createIfMissing,
+      int existingType) {
+    ItemDTO existing = item("timeout", "100");
+    existing.setType(existingType);
+    when(itemService.loadItem(Env.valueOf(ENV), APP_ID, CLUSTER, NAMESPACE, "timeout"))
+        .thenReturn(existing);
+    OpenItemDTO request = new OpenItemDTO().key("timeout").value("200");
+
+    if (createIfMissing) {
+      service.createOrUpdateItem(APP_ID, ENV, CLUSTER, NAMESPACE, request, "operator");
+    } else {
+      service.updateItem(APP_ID, ENV, CLUSTER, NAMESPACE, request, "operator");
+    }
+
+    ArgumentCaptor<ItemDTO> captor = ArgumentCaptor.forClass(ItemDTO.class);
+    verify(itemService).updateItem(eq(APP_ID), eq(Env.valueOf(ENV)), eq(CLUSTER), eq(NAMESPACE),
+        captor.capture());
+    assertThat(captor.getValue().getType()).isEqualTo(existingType);
+    assertThat(captor.getValue().getValue()).isEqualTo("200");
+    assertThat(captor.getValue().getDataChangeLastModifiedBy()).isEqualTo("operator");
   }
 
   @Test

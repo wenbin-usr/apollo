@@ -17,17 +17,32 @@
 package com.ctrip.framework.apollo.configservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.awaitility.Awaitility.*;
 
 import com.ctrip.framework.apollo.biz.config.BizConfig;
 import com.ctrip.framework.apollo.biz.entity.AccessKey;
 import com.ctrip.framework.apollo.biz.repository.AccessKeyRepository;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Date;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.awaitility.Awaitility;
+import org.slf4j.Logger;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -89,6 +104,179 @@ public class AccessKeyServiceWithCacheTest {
 
     await().untilAsserted(
         () -> assertThat(accessKeyServiceWithCache.getAvailableSecrets(appId)).isEmpty());
+  }
+
+  @Test
+  public void testGetSecretsDoesNotFailWhenCacheMutatedConcurrently() throws Exception {
+    String appId = "someAppId";
+    AccessKey enabledKey = assembleAccessKey(1L, appId, "secret-1", true, false, 1577808000000L);
+
+    when(accessKeyRepository
+        .findFirst500ByDataChangeLastModifiedTimeGreaterThanEqualAndDataChangeLastModifiedTimeLessThanOrderByDataChangeLastModifiedTimeAsc(
+            any(), any()))
+        .thenReturn(Lists.newArrayList(enabledKey));
+    when(accessKeyRepository.findAllById(anyList())).thenReturn(Lists.newArrayList(enabledKey));
+
+    accessKeyServiceWithCache.afterPropertiesSet();
+    try {
+      assertThat(accessKeyServiceWithCache.getAvailableSecrets(appId)).containsExactly("secret-1");
+
+      Field cacheField = AccessKeyServiceWithCache.class.getDeclaredField("accessKeyCache");
+      cacheField.setAccessible(true);
+      @SuppressWarnings("unchecked")
+      ListMultimap<String, AccessKey> cache =
+          (ListMultimap<String, AccessKey>) cacheField.get(accessKeyServiceWithCache);
+
+      AtomicInteger failures = new AtomicInteger();
+      AtomicBoolean stop = new AtomicBoolean(false);
+      int readerCount = 4;
+      ExecutorService pool = Executors.newFixedThreadPool(readerCount + 1);
+      CountDownLatch started = new CountDownLatch(readerCount + 1);
+      try {
+        for (int i = 0; i < readerCount; i++) {
+          pool.submit(() -> {
+            started.countDown();
+            while (!stop.get()) {
+              try {
+                accessKeyServiceWithCache.getAvailableSecrets(appId);
+              } catch (RuntimeException ex) {
+                failures.incrementAndGet();
+              }
+            }
+          });
+        }
+        pool.submit(() -> {
+          started.countDown();
+          long seq = 0;
+          while (!stop.get()) {
+            AccessKey extra =
+                assembleAccessKey(1000L + seq, appId, "secret-x-" + seq, true, false, 1L);
+            cache.put(appId, extra);
+            cache.remove(appId, extra);
+            seq++;
+          }
+        });
+
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+        TimeUnit.MILLISECONDS.sleep(500);
+        assertThat(failures.get()).isZero();
+      } finally {
+        stop.set(true);
+        pool.shutdownNow();
+        assertThat(pool.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+      }
+    } finally {
+      accessKeyServiceWithCache.destroy();
+    }
+  }
+
+  @Test
+  public void testGetSecretsDoesNotSeeOldAndNewKeyTogether() throws Exception {
+    String appId = "someAppId";
+    Method mergeAccessKeys =
+        AccessKeyServiceWithCache.class.getDeclaredMethod("mergeAccessKeys", List.class);
+    mergeAccessKeys.setAccessible(true);
+
+    AccessKey initial = assembleAccessKey(1L, appId, "secret-0", true, false, 1L);
+    mergeAccessKeys.invoke(accessKeyServiceWithCache, Lists.newArrayList(initial));
+    assertThat(accessKeyServiceWithCache.getAvailableSecrets(appId)).containsExactly("secret-0");
+
+    AtomicInteger overlaps = new AtomicInteger();
+    AtomicInteger failures = new AtomicInteger();
+    AtomicBoolean stop = new AtomicBoolean(false);
+    int readerCount = 4;
+    ExecutorService pool = Executors.newFixedThreadPool(readerCount + 1);
+    CountDownLatch started = new CountDownLatch(readerCount + 1);
+    try {
+      for (int i = 0; i < readerCount; i++) {
+        pool.submit(() -> {
+          started.countDown();
+          while (!stop.get()) {
+            try {
+              List<String> secrets = accessKeyServiceWithCache.getAvailableSecrets(appId);
+              if (secrets.size() != 1) {
+                overlaps.incrementAndGet();
+              }
+            } catch (RuntimeException ex) {
+              failures.incrementAndGet();
+            }
+          }
+        });
+      }
+      pool.submit(() -> {
+        started.countDown();
+        long seq = 1;
+        while (!stop.get()) {
+          try {
+            AccessKey updated = assembleAccessKey(1L, appId, "secret-" + seq, true, false, seq);
+            mergeAccessKeys.invoke(accessKeyServiceWithCache, Lists.newArrayList(updated));
+            seq++;
+          } catch (Exception ex) {
+            failures.incrementAndGet();
+          }
+        }
+      });
+
+      assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+      TimeUnit.MILLISECONDS.sleep(500);
+      assertThat(failures.get()).isZero();
+      assertThat(overlaps.get()).isZero();
+    } finally {
+      stop.set(true);
+      pool.shutdownNow();
+      assertThat(pool.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+    }
+  }
+
+  @Test
+  public void testGetSecretsIsNotBlockedByUpdateLogging() throws Exception {
+    Method mergeAccessKeys =
+        AccessKeyServiceWithCache.class.getDeclaredMethod("mergeAccessKeys", List.class);
+    mergeAccessKeys.setAccessible(true);
+
+    AccessKey initial = assembleAccessKey(1L, "appA", "secret-0", true, false, 1L);
+    mergeAccessKeys.invoke(accessKeyServiceWithCache, Lists.newArrayList(initial));
+
+    Field loggerField = AccessKeyServiceWithCache.class.getDeclaredField("logger");
+    loggerField.setAccessible(true);
+    Logger originalLogger = (Logger) loggerField.get(null);
+    Logger blockingLogger = mock(Logger.class);
+    CountDownLatch loggingStarted = new CountDownLatch(1);
+    CountDownLatch resumeLogging = new CountDownLatch(1);
+    doAnswer(invocation -> {
+      loggingStarted.countDown();
+      assertThat(resumeLogging.await(5, TimeUnit.SECONDS)).isTrue();
+      return null;
+    }).when(blockingLogger).info(eq("Found Accesskey changes, old: {}, new: {}"), any(), any());
+
+    loggerField.set(null, blockingLogger);
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    try {
+      Future<?> update = pool.submit(() -> {
+        try {
+          AccessKey updated = assembleAccessKey(1L, "appA", "secret-1", true, false, 2L);
+          mergeAccessKeys.invoke(accessKeyServiceWithCache, Lists.newArrayList(updated));
+        } catch (Exception ex) {
+          throw new RuntimeException(ex);
+        }
+      });
+
+      assertThat(loggingStarted.await(5, TimeUnit.SECONDS)).isTrue();
+      CountDownLatch readStarted = new CountDownLatch(1);
+      Future<List<String>> otherAppRead = pool.submit(() -> {
+        readStarted.countDown();
+        return accessKeyServiceWithCache.getAvailableSecrets("appB");
+      });
+      assertThat(readStarted.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(otherAppRead.get(1, TimeUnit.SECONDS)).isEmpty();
+      resumeLogging.countDown();
+      update.get(5, TimeUnit.SECONDS);
+    } finally {
+      resumeLogging.countDown();
+      loggerField.set(null, originalLogger);
+      pool.shutdownNow();
+      assertThat(pool.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+    }
   }
 
   public AccessKey assembleAccessKey(Long id, String appId, String secret, boolean enabled,

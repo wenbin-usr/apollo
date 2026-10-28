@@ -493,7 +493,7 @@ export JAVA_OPTS="-server -Xms6144m -Xmx6144m -Xss256k -XX:MetaspaceSize=128m -X
 
 > 注1：如果需要修改JVM参数，可以修改scripts/startup.sh的`JAVA_OPTS`部分。
 
-> 注2：如要调整服务的日志输出路径，可以修改scripts/startup.sh和apollo-configservice.conf中的`LOG_DIR`。
+> 注2：如要调整服务的日志输出路径，可以修改scripts/startup.sh中的`LOG_DIR`。
 
 > 注3：如要调整服务的监听端口，可以修改scripts/startup.sh中的`SERVER_PORT`。另外apollo-configservice同时承担meta server职责，如果要修改端口，需要同步更新apollo-portal和apollo-client中的meta server信息，详见：[2.2.1.1.2.4 配置apollo-portal的meta service信息](#_221124-配置apollo-portal的meta-service信息)和[1.2.2 Apollo Meta Server](zh/client/java-sdk-user-guide#_122-apollo-meta-server)。如果当前仍使用内置Eureka，还需要同时更新ApolloConfigDB.ServerConfig表中的`eureka.service.url`配置项。
 
@@ -513,7 +513,7 @@ export JAVA_OPTS="-server -Xms2560m -Xmx2560m -Xss256k -XX:MetaspaceSize=128m -X
 
 > 注1：如果需要修改JVM参数，可以修改scripts/startup.sh的`JAVA_OPTS`部分。
 
-> 注2：如要调整服务的日志输出路径，可以修改scripts/startup.sh和apollo-adminservice.conf中的`LOG_DIR`。
+> 注2：如要调整服务的日志输出路径，可以修改scripts/startup.sh中的`LOG_DIR`。
 
 > 注3：如要调整服务的监听端口，可以修改scripts/startup.sh中的`SERVER_PORT`。
 
@@ -529,7 +529,7 @@ export JAVA_OPTS="-server -Xms4096m -Xmx4096m -Xss256k -XX:MetaspaceSize=128m -X
 
 > 注1：如果需要修改JVM参数，可以修改scripts/startup.sh的`JAVA_OPTS`部分。
 
-> 注2：如要调整服务的日志输出路径，可以修改scripts/startup.sh和apollo-portal.conf中的`LOG_DIR`。
+> 注2：如要调整服务的日志输出路径，可以修改scripts/startup.sh中的`LOG_DIR`。
 
 > 注3：如要调整服务的监听端口，可以修改scripts/startup.sh中的`SERVER_PORT`。
 
@@ -1340,7 +1340,15 @@ Portal中新建的App都需要选择部门，所以需要在这里配置可选�
 
 ### 3.1.5 consumer.token.salt - consumer token salt
 
-如果会使用开放平台API的话，可以设置一个token salt。如果不使用，可以忽略。
+使用开放平台第三方应用（Consumer）Token 时，建议将 `consumer.token.salt` 设置为本部署独有的随机字符串，例如：
+
+```bash
+openssl rand -hex 32
+```
+
+将生成的值配置到 `ApolloPortalDB.ServerConfig`，或通过 `管理员工具 - 系统参数` 页面设置。修改后通常约一分钟生效，生成 Token 前请等待配置刷新。不使用第三方应用 Token 时可忽略此项。
+
+修改 salt 不影响已有 Token。如需更换 Token，超级管理员可在 Portal 删除并重建对应的 Consumer。删除会使旧 Token 失效并清除授权关联，请提前记录所需权限，重建后恢复授权并更新调用方的 Token。
 
 ### 3.1.6 wiki.address
 

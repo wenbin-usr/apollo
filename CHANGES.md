@@ -2,26 +2,12 @@ Changes by Version
 ==================
 Release Notes.
 
-Apollo 3.0.0
+Apollo 3.1.0
 
 ------------------
-* [Fix: include super admin in hasAnyPermission semantics](https://github.com/apolloconfig/apollo/pull/5568)
-* [Change: official Config/Admin packages now default to database discovery; upgraded Eureka deployments should explicitly keep the `github` profile to preserve legacy behavior](https://github.com/apolloconfig/apollo/pull/5580)
-* [Refactor: extract config constants and methods in BizConfig, PortalConfig, and RefreshableConfig](https://github.com/apolloconfig/apollo/pull/5583)
-* [Change: migrate Apollo server baseline to Spring Boot 4.0.x, align Spring Cloud discovery integrations, and add external discovery smoke workflow](https://github.com/apolloconfig/apollo/pull/5585)
-* [Feature: auto-provision an enabled AccessKey per environment when creating a new app, controlled by `apollo.access-key.auto-provision.enabled` in ApolloConfigDB.ServerConfig](https://github.com/apolloconfig/apollo/pull/5589)
-* [Feature: support ServerConfig create/update/delete by `key + cluster` in ConfigDB management, with UI cluster awareness and multi-cluster safety tests](https://github.com/apolloconfig/apollo/pull/5601)
-* [Change: adapt Apollo Portal OpenAPI migration to apollo-openapi v0.2.0](https://github.com/apolloconfig/apollo/pull/5608)
-* [Change: migrate Apollo Portal config item UI operations to OpenAPI](https://github.com/apolloconfig/apollo/pull/5610)
-* [Change: migrate Apollo Portal namespace core UI operations to OpenAPI](https://github.com/apolloconfig/apollo/pull/5612)
-* [Change: migrate Apollo Portal release, branch, and instance UI operations to OpenAPI](https://github.com/apolloconfig/apollo/pull/5616)
-* [Change: migrate Apollo Portal permission and AccessKey UI operations to OpenAPI](https://github.com/apolloconfig/apollo/pull/5617)
-* [Change: complete Apollo Portal UI management OpenAPI migration](https://github.com/apolloconfig/apollo/pull/5618)
-* [Feature: allow explicitly authorized consumer tokens to manage portal users](https://github.com/apolloconfig/apollo/pull/5623)
-* [Feature: add user access tokens for AI agents and automation](https://github.com/apolloconfig/apollo/pull/5632)
-* [Fix: return 429 instead of redirecting to sign-in for OpenAPI user token rate limits](https://github.com/apolloconfig/apollo/pull/5637)
-* [Fix: physically delete retained release history and unreferenced release rows](https://github.com/apolloconfig/apollo/pull/5641)
-* [Fix: preserve item type when revoking unpublished changes](https://github.com/apolloconfig/apollo/pull/5646)
+* [Change: migrate the deprecated stale bot to GitHub Actions](https://github.com/apolloconfig/apollo/pull/5690)
+* [Change: standardize Maven POM formatting with Spotless SortPom](https://github.com/apolloconfig/apollo/pull/5702)
+* [Docs: clarify consumer token salt configuration and existing-token rotation](https://github.com/apolloconfig/apollo/pull/5703)
 
 ------------------
-All issues and pull requests are [here](https://github.com/apolloconfig/apollo/milestone/18?closed=1)
+All issues and pull requests are [here](https://github.com/apolloconfig/apollo/milestone/22?closed=1)

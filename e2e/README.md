@@ -2,6 +2,15 @@
 
 This directory contains end-to-end (E2E) UI tests and related CI entrypoints.
 
+## Release-time Chrome regression
+
+The [Portal Chrome regression handbook](portal-e2e/release-regression/README.md) is the
+single source for 60 scenario groups and 160 checks, including setup, test data, Chrome
+actions, expected results, cleanup, and existing automated coverage. Ask Codex to follow
+it against the release candidate and verify every check through Chrome. Keep results
+and any screenshots locally; this manual regression has no CI or upload requirement.
+Maintain the cases directly in the handbook, which is written in Chinese.
+
 ## Test Suites
 
 ### Portal UI E2E
@@ -30,6 +39,47 @@ Current cases:
 13. `text mode edit and publish are readable from config service @regression`
 14. `linked public namespace supports association and override @regression`
 15. `grayscale ui supports create rule publish merge and discard @regression`
+16. `user-token deletes a plain/slash/backslash key without affecting other keys @regression` (three cases)
+
+OpenAPI deletion coverage (via `portal-item-delete.spec.js`) uses real Portal and AdminService
+APIs with a scoped user token. Each case creates all three keys, deletes one without an
+`operator`, verifies a subsequent read returns 404, and confirms the other keys and values
+remain unchanged. Each case removes its test app and revokes its token on completion.
+
+OpenAPI field preservation coverage (via `portal-openapi-fields.spec.js`):
+
+1. Master and gray item modification timestamps render and sort correctly; release previews show dates.
+2. Starting with two populated gray rules, adding a third, editing one, and deleting one preserves
+   every other client's IPs and labels. Assertions read persisted rules directly from AdminService.
+3. Real Config Service requests create one instance on an older release and one on the latest release.
+   Both appear with delivery times and the correct release; totals and stored release IDs agree.
+   The intervening item update omits optional `type`, preserving the original type without an error.
+4. Application audit display names and nonempty access key timestamps survive conversion.
+
+Each case creates and removes its own app. `ADMIN_URL` defaults to `http://127.0.0.1:8090`;
+set it alongside `BASE_URL` and `CONFIG_URL` when using different service ports.
+Traces are disabled for this file because access key responses contain secrets.
+
+The corresponding Java field matrix is enforced by
+`OpenApiModelConvertersFieldPreservationTest`, `OpenAppDtoUserInfoEnrichedAdapterTest`,
+`ServerAppOpenApiServiceTest`, `ServerItemOpenApiServiceTest`, and
+`ApolloOpenApiJavaClientCompatibilityTest`:
+
+| Source models | Response fields and behavior |
+| --- | --- |
+| Item, Namespace, App, AppNamespace, Cluster, Release, AccessKey, GrayReleaseRule | `dataChangeCreatedTime`, `dataChangeLastModifiedTime`: match legacy HTTP serialization, preserve milliseconds and timezone, keep nulls absent |
+| Instance | `dataChangeCreatedTime`, nonempty `configs`, page metadata |
+| InstanceConfig | `releaseDeliveryTime`, `dataChangeLastModifiedTime`, nullable nested release with ID, name, configurations, and audit dates |
+| GrayReleaseRuleItem | Each `clientAppId`, all IPs and labels, wildcards, empty collections, and independent output collections |
+| App user enrichment | Distinct creator, modifier, and owner IDs resolve to their respective display names |
+| NamespaceBO and ItemBO | Reuse date conversion without losing namespace details or item metadata |
+| Item updates and upserts | Omitted `type` preserves an existing string or non-string type; explicit type changes still apply |
+
+When the generated contract changes, update this matrix and the populated fixtures for affected
+fields. The date tests discover source date properties and compare against the legacy serializer;
+run them in separate JVMs with `-Duser.timezone=UTC` and `-Duser.timezone=Asia/Shanghai`.
+The published Java client tests check item and release date parsing. Gray rule and instance
+responses are checked through HTTP because that client version has no corresponding read methods.
 
 High-priority user-guide coverage (via `portal-priority.spec.js`):
 
@@ -153,6 +203,13 @@ Run only Config Service full-chain regression:
 ```bash
 cd e2e/portal-e2e
 BASE_URL=http://127.0.0.1:8070 npm run test:e2e:ci -- tests/portal-configservice.spec.js
+```
+
+Run only OpenAPI user-token deletion regression (no CLI or browser is required):
+
+```bash
+cd e2e/portal-e2e
+BASE_URL=http://127.0.0.1:8070 npm run test:e2e:ci -- tests/portal-item-delete.spec.js
 ```
 
 Run Portal auth matrix in LDAP mode:
